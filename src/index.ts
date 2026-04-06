@@ -9,6 +9,9 @@ import aliasRoutes from './routes/alias';
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
 
+// 🚨 TRUST PROXY FIX: Tells Express to trust Nginx so the rate limiter works
+app.set('trust proxy', 1);
+
 // Hardcoded array for bulletproof CORS
 const allowedOrigins = [
   'http://localhost:5173', // Local Vite

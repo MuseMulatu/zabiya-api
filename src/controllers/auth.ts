@@ -116,7 +116,10 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         });
 
         await tx.wallet.create({
-          data: { user_id: dbUser.id, intent_slots_balance: 2, alias_slots_balance: 0 }
+          data: { 
+            user_id: dbUser.id, 
+            slots_balance: 2 // 👈 Unified currency
+          }
         });
 
         // Register Verified Alias
@@ -323,13 +326,11 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
             phone_encrypted: encryptedPhone,
           }
         });
-
         // 3. Slot Architecture Fix: Initialize Wallet
         await tx.wallet.create({
           data: {
             user_id: dbUser.id,
-            intent_slots_balance: 2, // Grant 2 free intent slots
-            alias_slots_balance: 0
+            slots_balance: 2 // 👈 Unified currency: Grant 2 free slots
           }
         });
       } else {

@@ -183,14 +183,14 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
         throw new Error('DUPLICATE_INTENT');
       }
 
-      // Step D: Slot Deduction (Atomic decrement)
-      if (userA.wallet.intent_slots_balance < 1) {
+      // Step D: Slot Deduction (Costs 1 Slot)
+      if (userA.wallet.slots_balance < 1) {
         throw new Error('INSUFFICIENT_FUNDS');
       }
 
       await tx.wallet.update({
         where: { user_id: userId },
-        data: { intent_slots_balance: { decrement: 1 } }
+        data: { slots_balance: { decrement: 1 } } // 👈 Unified column
       });
 
       // Step E: Create Intent A with 30-Day Expiration
@@ -405,16 +405,13 @@ const user = await prisma.user.findUnique({
     res.status(200).json({
       success: true,
       data: {
-         wallet: {
-          intent_slots: user.wallet.intent_slots_balance,
-          alias_slots: user.wallet.alias_slots_balance
-        },
+        wallet: { slots: user.wallet.slots_balance }, // 👈 Just one number now
         aliases: user.aliases,
         active_intents_count: user._count.intents,
-        active_intents: activeIntents, // 👈 ADD THIS LINE
+        active_intents: activeIntents, 
         expired_intents: expiredIntents,
         matches: processedMatches,
-        blocked_connections: blockedConnections,
+        blocked_connections: blockedConnections
       }
     });
 

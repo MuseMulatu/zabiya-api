@@ -10,10 +10,10 @@ const ARIFPAY_WEBHOOK_SECRET = process.env.ARIFPAY_WEBHOOK_SECRET;
 
 const ARIFPAY_API_KEY = process.env.ARIFPAY_API_KEY as string;
 // Defaulting to the gateway provided in the docs
-const ARIFPAY_BASE_URL = process.env.ARIFPAY_BASE_URL || 'https://gateway.arifpay.net';
-const API_BASE_URL = process.env.API_BASE_URL || 'https://api.zabiya.com'; //
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://zabiya.com';
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://zabiya.com';
+const ARIFPAY_BASE_URL = process.env.ARIFPAY_BASE_URL;
+const API_BASE_URL = process.env.API_BASE_URL;
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const APP_BASE_URL = process.env.APP_BASE_URL;
 
 if (!ARIFPAY_API_KEY || !ARIFPAY_WEBHOOK_SECRET) {
   console.warn('⚠️ ARIFPAY credentials missing. Payment engine will fail.');
@@ -62,7 +62,7 @@ export const paymentWebhook = async (req: Request, res: Response): Promise<void>
     }
 
     const transaction = await prisma.transaction.findUnique({
-      where: { arifpay_session_id: sessionId },
+      where: { session_id: sessionId }, // 👈 Changed to session_id
       include: { user: true }
     });
 
@@ -73,11 +73,12 @@ export const paymentWebhook = async (req: Request, res: Response): Promise<void>
 
     // 3. Webhook Payload Validation (Amount & Currency)
     // Convert Prisma Decimal to Number for safe comparison
-    if (Number(transaction.amount) !== Number(amount) || transaction.currency !== currency) {
-      console.error(`🚨 [Payment Webhook] Payload mismatch! DB Amount: ${transaction.amount} ${transaction.currency}, Webhook Amount: ${amount} ${currency}`);
+    if (Number(transaction.amount) !== Number(amount)) {
+     console.error(`🚨 [Payment Webhook] Payload mismatch! DB Amount: ${transaction.amount}, Webhook Amount: ${amount}`);
       res.status(400).json({ error: 'Payload validation failed: Amount/Currency mismatch.' });
       return;
     }
+
 
 if (status === 'SUCCESS') {
       const packageConfig = PACKAGES[transaction.package_type];
@@ -143,8 +144,9 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       return;
     }
 
-    // 1. Determine Pricing
+    // 1. Determine Pricing & Slots
     const amount = packageType === 'premium' ? 199.0 : 149.0;
+    // (We don't actually need to declare slotsToAdd here, but just for clarity)
     const slotsToAdd = packageType === 'premium' ? 10 : 3;
 
     // 2. IDEMPOTENCY CHECK: Is there already a pending transaction?
@@ -253,7 +255,11 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
     const actualStatus = verifyData.data?.status || 'FAILED'; // e.g., 'SUCCESS', 'FAILED', 'CANCELED'
 
     // 2. Fetch the transaction from our DB
-    const tx = await prisma.transaction.findUnique({ where: { session_id: sessionId } });
+    // 👈 FIX 1 & 4: Use 'session_id' and add 'include: { user: true }'
+    const tx = await prisma.transaction.findUnique({ 
+      where: { session_id: sessionId },
+      include: { user: true } 
+    });
     
     if (!tx) {
       // Acknowledge receipt even if not found to stop ArifPay from retrying infinitely
@@ -270,7 +276,7 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
     // 3. Process Based on Verified Status
     if (actualStatus === 'SUCCESS') {
       // Atomic Transaction to Update Status & Provision Wallet
-      const slotsToAdd = tx.package_type === 'premium' ? 10 : 3;
+      const slotsToAdd = tx.package_type === 'premium' ? 6 : 3; // 👈 Updated amounts
 
       await prisma.$transaction([
         prisma.transaction.update({
@@ -279,9 +285,16 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
         }),
         prisma.wallet.update({
           where: { user_id: tx.user_id },
-          data: { intent_slots_balance: { increment: slotsToAdd } }
+          data: { slots_balance: { increment: slotsToAdd } } // 👈 Unified column
         })
       ]);
+
+      // 👈 FIX 5: Now tx.user exists and we can access telegram_chat_id
+      if (tx.user && tx.user.telegram_chat_id) {
+         // If you have a notification function, call it here. 
+         // Example: sendTelegramMessage(tx.user.telegram_chat_id, 'Payment successful!').catch(console.error);
+      }
+
     } else {
       // Update DB to FAILED, CANCELED, or EXPIRED
       await prisma.transaction.update({

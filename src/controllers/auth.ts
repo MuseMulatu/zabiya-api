@@ -18,7 +18,6 @@ const normalizePhone = (phone: string): string => {
   const cleaned = phone.replace(/[^\d+]/g, '');
   return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
 };
-const normalizedPhone = normalizeIdentifier('phone', phone); // Or message.contact.phone_number
 
 // Helper: Send Telegram Message with optional Keyboard
 const sendTelegramWithKeyboard = async (chatId: string | number, text: string, keyboard?: any) => {

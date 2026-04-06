@@ -4,6 +4,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth';
 import paymentRoutes from './routes/payment'; // Assuming this was added
 import intentRoutes from './routes/intent'; 
+import aliasRoutes from './routes/alias';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,7 @@ app.use(express.json({
 app.use('/api/auth', authRoutes);
 app.use('/api/intent', intentRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/alias', aliasRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 [System] Zabiya Engine securely running on port ${PORT}`);

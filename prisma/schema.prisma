@@ -49,12 +49,14 @@ model Transaction {
 // ⚠️ IMPORTANT: Add `transactions Transaction[]` inside your `User` model so Prisma knows about the relation!
 
 model Wallet {
-  id                   String   @id @default(uuid())
-  user_id              String   @unique
-  user                 User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  intent_slots_balance Int      @default(0)
-  alias_slots_balance  Int      @default(0)
-  updated_at           DateTime @updatedAt
+  id             String   @id @default(uuid())
+  user_id        String   @unique
+  
+  // 👈 THE UNIFIED CURRENCY
+  slots_balance  Int      @default(0) 
+  
+  updated_at     DateTime @updatedAt
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model Alias {

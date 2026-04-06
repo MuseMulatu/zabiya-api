@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // Assuming PostgreSQL for production
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String     @id @default(uuid())
+  phone_encrypted  String     // Symmetrically encrypted
+  telegram_chat_id String?    @unique
+  gender           String?    // 'male', 'female'
+  birth_date       DateTime?
+  created_at       DateTime   @default(now())
+  updated_at       DateTime   @updatedAt
+  last_notified_at DateTime?
+
+  aliases          Alias[]
+  intents          Intent[]
+  matches_a        Match[]    @relation("UserAMatches")
+  matches_b        Match[]    @relation("UserBMatches")
+  purchases        Purchase[]
+  wallet           Wallet?
+  transactions     Transaction[] // Added relation
+  
+  blocked_users Block[] @relation("BlockedUsers")
+  blocked_by    Block[] @relation("BlockedBy")
+}
+
+model Transaction {
+  id           String   @id @default(uuid())
+  user_id      String
+  session_id   String?  @unique // Populated after Arifpay responds
+  nonce        String   @unique
+  amount       Float
+  package_type String   // 'basic' or 'premium'
+  status       String   @default("PENDING") // PENDING, SUCCESS, FAILED, EXPIRED, CANCELED
+  checkout_url String?
+  expire_date  DateTime
+  
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// ⚠️ IMPORTANT: Add `transactions Transaction[]` inside your `User` model so Prisma knows about the relation!
+
+model Wallet {
+  id                   String   @id @default(uuid())
+  user_id              String   @unique
+  user                 User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  intent_slots_balance Int      @default(0)
+  alias_slots_balance  Int      @default(0)
+  updated_at           DateTime @updatedAt
+}
+
+model Alias {
+  id                  String   @id @default(uuid())
+  user_id             String
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type                String   // 'phone', 'telegram', 'instagram'
+  hashed_value        String   // SHA-256 hashed value (identifier + PEPPER)
+  verified            Boolean  @default(false)
+  verification_method String?  // e.g., 'telegram_auth', 'sms_otp', 'oauth'
+  created_at          DateTime @default(now())
+
+  @@index([hashed_value])
+  @@unique([user_id, type, hashed_value])
+}
+
+model Intent {
+  id               String   @id @default(uuid())
+  user_id          String
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  type             String   // e.g., 'phone', 'telegram', 'instagram'
+  target_hash      String   // Hashed identifier (used by the match engine)
+  target_encrypted String   // Encrypted identifier (used to show the user their dashboard)
+  
+  created_at       DateTime @default(now())
+  expires_at       DateTime
+
+  @@index([target_hash]) 
+  @@unique([user_id, target_hash]) 
+  status           String   @default("ACTIVE") // 'ACTIVE' or 'REVOKED'
+}
+model Match {
+  id         String   @id @default(uuid())
+  user_a_id  String
+  user_a     User     @relation("UserAMatches", fields: [user_a_id], references: [id], onDelete: Cascade)
+  user_b_id  String
+  user_b     User     @relation("UserBMatches", fields: [user_b_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+
+  @@unique([user_a_id, user_b_id]) // Prevent duplicate match records
+  status           String   @default("ACTIVE") // 'ACTIVE' or 'BLOCKED'
+}
+
+model Block {
+  id          String   @id @default(uuid())
+  blocker_id  String
+  blocked_id  String
+  created_at  DateTime @default(now())
+
+  // Relations required to fetch the blocked user's details
+  blocker     User     @relation("BlockedUsers", fields: [blocker_id], references: [id], onDelete: Cascade)
+  blocked     User     @relation("BlockedBy", fields: [blocked_id], references: [id], onDelete: Cascade)
+
+  @@unique([blocker_id, blocked_id])
+}
+
+model Purchase {
+  id         String   @id @default(uuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  type       String   // 'intent_slots', 'alias_slots'
+  quantity   Int
+  status     String   // 'pending', 'completed', 'failed'
+  created_at DateTime @default(now())
+}
+
+model OtpRequest {
+  id         String   @id @default(uuid())
+  phone      String   @unique
+  otp_code   String
+  expires_at DateTime
+  created_at DateTime @default(now())
+}

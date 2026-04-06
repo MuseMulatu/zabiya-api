@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres-local:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: zabiya_admin
+      POSTGRES_PASSWORD: local_dev_password
+      POSTGRES_DB: zabiya_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - local_pgdata:/var/lib/postgresql/data
+
+volumes:
+  local_pgdata:

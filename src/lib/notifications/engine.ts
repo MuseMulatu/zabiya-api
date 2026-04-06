@@ -23,7 +23,7 @@ export const triggerCrushNotification = async (targetHash: string): Promise<void
     const userB = targetAlias.user;
 
     // 3. The Zero-Slot UX Check
-    if (!userB.wallet || userB.wallet.intent_slots_balance < 1) {
+    if (!userB.wallet || userB.wallet.slots_balance < 1) {
       console.log(`[Notification Engine] Muted crush notification for user ${userB.id} (Zero slots)`);
       return;
     }

@@ -110,7 +110,7 @@ if (status === 'SUCCESS') {
         // We safely increment the wallet because the updateMany lock succeeded
         await tx.wallet.update({
           where: { user_id: transaction.user_id },
-          data: { intent_slots_balance: { increment: packageConfig.slots } }
+          data: { slots_balance: { increment: packageConfig.slots } }
         });
 
         // 5. Telegram Receipt Notification

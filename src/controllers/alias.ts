@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { prisma } from '../lib/db/prisma';
 import { normalizeIdentifier } from '../lib/security/normalization';
-import { hashIdentifier, AliasType } from '../lib/security/hashing';
+import { hashIdentifier, AliasType } from '../lib/hashing';
 
 export const addAlias = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {

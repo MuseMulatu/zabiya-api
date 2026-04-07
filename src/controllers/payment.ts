@@ -209,16 +209,16 @@ const payload = {
       nonce: nonce,
       expireDate: expireDateStr,
       
-      // What the user sees (Telebirr is perfectly fine here!):
+      // What the user sees:
       paymentMethods: ["TELEBIRR", "CBE", "MPESA"], 
       
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
       
-      // 👇 Zabiya's Settlement Destination (CBE)
+      // 👇 THE SANDBOX BYPASS
       beneficiaries: [ 
         {
-          accountNumber: "1000665542789", // Your actual CBE account number
-          bank: "CBETETAA",               // 👈 The official CBE Routing Code!
+          accountNumber: "01320811436100", // ArifPay's official sandbox test account
+          bank: "AWINETAA",                // The raw routing code for Awash
           amount: amount
         }
       ],

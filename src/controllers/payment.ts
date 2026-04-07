@@ -210,13 +210,13 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       amount: amount,              // 👈 Added root amount
       nonce: nonce,
       expireDate: expireDateStr,
-      paymentMethods: ["TELEBIRR", "CBE", "AWASH", "MPESA"],
+      paymentMethods: ["TELEBIRR", "CBE"],
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
       // 👈 Added standard beneficiary structure required by their raw API
       beneficiaries: [ 
         {
-          accountNumber: "0",
-          bank: "AWASH",
+          accountNumber: "251934963090", // Your actual Telebirr merchant number
+          bank: "TELEBIRR",              // ArifPay recognizes TELEBIRR here
           amount: amount
         }
       ],

@@ -178,14 +178,15 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
     }
 
     // 3. Prep Data for ArifPay
-    const formattedPhone = formatArifpayPhone(rawPhone); // 👈 Use the decrypted phone here!
+    const formattedPhone = formatArifpayPhone(rawPhone);
     const nonce = crypto.randomUUID().replace(/-/g, '').substring(0, 20);
     
+    // 🚨 FIX 1: Timezone Trap. Add 3 hours to guarantee it is in the future 
+    // regardless of server UTC/EAT timezone stripping.
     const expireDateObj = new Date();
-    expireDateObj.setHours(expireDateObj.getHours() + 1);
-    // Format: YYYY-MM-DDTHH:mm:ss
-    const expireDateStr = expireDateObj.toISOString().split('.')[0]; 
-
+    expireDateObj.setHours(expireDateObj.getHours() + 3); 
+    const expireDateStr = expireDateObj.toISOString().split('.')[0];
+    
     // 4. Create PENDING Transaction in DB
     const tx = await prisma.transaction.create({
       data: {
@@ -199,19 +200,29 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
     });
 
     // 5. Build ArifPay Payload
-    const payload = {
+   const payload = {
       cancelUrl: `${APP_BASE_URL}/dashboard?payment=cancelled`,
       errorUrl: `${APP_BASE_URL}/dashboard?payment=error`,
       successUrl: `${APP_BASE_URL}/dashboard?payment=success`,
       notifyUrl: `${process.env.API_BASE_URL}/api/payment/webhook`,
       phone: formattedPhone,
+      email: "support@zabiya.com", // 👈 Added dummy email to pass validation
+      amount: amount,              // 👈 Added root amount
       nonce: nonce,
       expireDate: expireDateStr,
       paymentMethods: ["TELEBIRR", "CBE", "AWASH", "MPESA"],
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
+      // 👈 Added standard beneficiary structure required by their raw API
+      beneficiaries: [ 
+        {
+          accountNumber: "0",
+          bank: "AWASH",
+          amount: amount
+        }
+      ],
       lang: "EN"
     };
-    
+
     console.log("🚀 Payload going to ArifPay:", JSON.stringify(payload, null, 2));
     // 6. Call ArifPay API
     const response = await fetch(`${ARIFPAY_BASE_URL}/api/checkout/session`, {
@@ -225,9 +236,11 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
 
     const data = await response.json();
 
+  // 🚨 FIX 4: Better Error Logging so we never have to guess again
     if (!response.ok || data.error) {
       await prisma.transaction.update({ where: { id: tx.id }, data: { status: 'FAILED' } });
-      throw new Error(data.msg || 'Arifpay Session Creation Failed');
+      console.error("❌ ARIFPAY REJECTION DETAILS:", JSON.stringify(data, null, 2));
+      throw new Error(data.msg || 'Validation Error');
     }
 
     // 7. CRITICAL: Update DB with the returned Session ID and URL

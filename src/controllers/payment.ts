@@ -198,7 +198,6 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
         status: 'PENDING'
       }
     });
-    
 const payload = {
       cancelUrl: `${APP_BASE_URL}/dashboard?payment=cancelled`,
       errorUrl: `${APP_BASE_URL}/dashboard?payment=error`,
@@ -209,19 +208,23 @@ const payload = {
       amount: amount,
       nonce: nonce,
       expireDate: expireDateStr,
+      
+      // What the user sees (Telebirr is perfectly fine here!):
       paymentMethods: ["TELEBIRR", "CBE", "MPESA"], 
+      
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
       
-      // 👇 THIS IS THE MAGIC FIX. MUST MATCH YOUR API KEY'S SETTLEMENT WALLET.
+      // 👇 Zabiya's Settlement Destination (CBE)
       beneficiaries: [ 
         {
-          accountNumber: "251934963090", // Put the exact Telebirr number you used when making the API key
-          bank: "CBETETAA",              // ArifPay expects the word 'TELEBIRR' here
+          accountNumber: "1000665542789", // Your actual CBE account number
+          bank: "CBETETAA",               // 👈 The official CBE Routing Code!
           amount: amount
         }
       ],
       lang: "EN"
     };
+
     console.log("🚀 Payload going to ArifPay:", JSON.stringify(payload, null, 2));
     // 6. Call ArifPay API
     const response = await fetch(`${ARIFPAY_BASE_URL}/api/checkout/session`, {

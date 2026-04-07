@@ -198,24 +198,31 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
         status: 'PENDING'
       }
     });
-
-// 5. Build ArifPay Payload
+    
     const payload = {
-      cancelUrl: `${process.env.FRONTEND_URL}/dashboard?payment=cancelled`,
-      errorUrl: `${process.env.FRONTEND_URL}/dashboard?payment=error`,
-      successUrl: `${process.env.FRONTEND_URL}/dashboard?payment=success`,
+      cancelUrl: `${APP_BASE_URL}/dashboard?payment=cancelled`,
+      errorUrl: `${APP_BASE_URL}/dashboard?payment=error`,
+      successUrl: `${APP_BASE_URL}/dashboard?payment=success`,
       notifyUrl: `${process.env.API_BASE_URL}/api/payment/webhook`,
       phone: formattedPhone,
-      email: "support@zabiya.com", 
-      amount: amount,              
+      email: "support@zabiya.com",
+      amount: amount,
       nonce: nonce,
       expireDate: expireDateStr,
-      paymentMethods: ["TELEBIRR", "CBE"], // This tells Arifpay to show Telebirr/CBE buttons to the user
+      
+      // Explicitly tell Arifpay to ONLY show these local options
+      paymentMethods: ["TELEBIRR", "CBE", "MPESA"], 
+      
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
       
-      // 🚨 FINTECH FIX: The 'beneficiaries' array has been completely removed! 
-      // The API key itself handles the settlement routing.
-      
+      // 👇 Settlement routing to your CBE account
+      beneficiaries: [ 
+        {
+          accountNumber: "1000665542789", // Put your actual CBE account number here
+          bank: "CBE",
+          amount: amount
+        }
+      ],
       lang: "EN"
     };
 

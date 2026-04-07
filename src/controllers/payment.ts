@@ -181,10 +181,10 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
     const formattedPhone = formatArifpayPhone(rawPhone);
     const nonce = crypto.randomUUID().replace(/-/g, '').substring(0, 20);
     
-    // 🚨 FIX 1: Timezone Trap. Add 3 hours to guarantee it is in the future 
+    // 🚨 FIX 1: Timezone Trap. Add 4 hours to guarantee it is in the future 
     // regardless of server UTC/EAT timezone stripping.
     const expireDateObj = new Date();
-    expireDateObj.setHours(expireDateObj.getHours() + 3); 
+    expireDateObj.setHours(expireDateObj.getHours() + 4); 
     const expireDateStr = expireDateObj.toISOString().split('.')[0];
     
     // 4. Create PENDING Transaction in DB

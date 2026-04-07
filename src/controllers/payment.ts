@@ -199,27 +199,23 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    // 5. Build ArifPay Payload
-   const payload = {
-      cancelUrl: `${APP_BASE_URL}/dashboard?payment=cancelled`,
-      errorUrl: `${APP_BASE_URL}/dashboard?payment=error`,
-      successUrl: `${APP_BASE_URL}/dashboard?payment=success`,
+// 5. Build ArifPay Payload
+    const payload = {
+      cancelUrl: `${process.env.FRONTEND_URL}/dashboard?payment=cancelled`,
+      errorUrl: `${process.env.FRONTEND_URL}/dashboard?payment=error`,
+      successUrl: `${process.env.FRONTEND_URL}/dashboard?payment=success`,
       notifyUrl: `${process.env.API_BASE_URL}/api/payment/webhook`,
       phone: formattedPhone,
-      email: "support@zabiya.com", // 👈 Added dummy email to pass validation
-      amount: amount,              // 👈 Added root amount
+      email: "support@zabiya.com", 
+      amount: amount,              
       nonce: nonce,
       expireDate: expireDateStr,
-      paymentMethods: ["TELEBIRR", "CBE"],
+      paymentMethods: ["TELEBIRR", "CBE"], // This tells Arifpay to show Telebirr/CBE buttons to the user
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
-      // 👈 Added standard beneficiary structure required by their raw API
-      beneficiaries: [ 
-        {
-          accountNumber: "251934963090", // Your actual Telebirr merchant number
-          bank: "TELEBIRR",              // ArifPay recognizes TELEBIRR here
-          amount: amount
-        }
-      ],
+      
+      // 🚨 FINTECH FIX: The 'beneficiaries' array has been completely removed! 
+      // The API key itself handles the settlement routing.
+      
       lang: "EN"
     };
 

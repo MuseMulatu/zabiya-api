@@ -211,7 +211,8 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
       lang: "EN"
     };
-
+    
+    console.log("🚀 Payload going to ArifPay:", JSON.stringify(payload, null, 2));
     // 6. Call ArifPay API
     const response = await fetch(`${ARIFPAY_BASE_URL}/api/checkout/session`, {
       method: 'POST',

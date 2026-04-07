@@ -216,7 +216,7 @@ const payload = {
       beneficiaries: [ 
         {
           accountNumber: "251934963090", // Put the exact Telebirr number you used when making the API key
-          bank: "TELEBIRR",              // ArifPay expects the word 'TELEBIRR' here
+          bank: "CBETETAA",              // ArifPay expects the word 'TELEBIRR' here
           amount: amount
         }
       ],

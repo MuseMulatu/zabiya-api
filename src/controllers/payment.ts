@@ -138,16 +138,27 @@ if (status === 'SUCCESS') {
 export const initializePayment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { packageType, phone } = req.body;
-    if (!userId || !packageType || !phone) {
+   const { packageType } = req.body; // 👈 Removed 'phone' from req.body
+
+    if (!userId || !packageType) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
 
-    // 1. Determine Pricing & Slots
+    // 🚨 FIX: Securely fetch and decrypt the user's actual phone number
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.phone_encrypted) {
+      res.status(400).json({ error: 'User phone number not found in vault.' });
+      return;
+    }
+    
+    // Decrypt it for ArifPay
+    const rawPhone = decryptData(user.phone_encrypted);
+
+    // 1. Determine Pricing
     const amount = packageType === 'premium' ? 199.0 : 149.0;
     // (We don't actually need to declare slotsToAdd here, but just for clarity)
-    const slotsToAdd = packageType === 'premium' ? 10 : 3;
+    const slotsToAdd = packageType === 'premium' ? 5 : 3;
 
     // 2. IDEMPOTENCY CHECK: Is there already a pending transaction?
     const existingTx = await prisma.transaction.findFirst({
@@ -167,8 +178,8 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
     }
 
     // 3. Prep Data for ArifPay
-    const formattedPhone = formatArifpayPhone(phone);
-    const nonce = crypto.randomUUID().replace(/-/g, '').substring(0, 20); // Unique nonce
+    const formattedPhone = formatArifpayPhone(rawPhone); // 👈 Use the decrypted phone here!
+    const nonce = crypto.randomUUID().replace(/-/g, '').substring(0, 20);
     
     const expireDateObj = new Date();
     expireDateObj.setHours(expireDateObj.getHours() + 1);

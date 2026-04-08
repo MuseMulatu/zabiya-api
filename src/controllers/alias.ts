@@ -100,7 +100,9 @@ export const verifyAndAddAlias = async (req: AuthenticatedRequest, res: Response
     });
 
     // 🚀 CRITICAL: Instant Match Check
-    const inboundIntents = await prisma.intent.findMany({ where: { target_hash: hashedValue, active: true } });
+    const inboundIntents = await prisma.intent.findMany({ 
+      where: { target_hash: hashedValue, status: 'ACTIVE' } // or 'ACTIVE' 
+    });
     res.json({ success: true, newMatchFound: inboundIntents.length > 0 });
     
   } catch (error: any) {

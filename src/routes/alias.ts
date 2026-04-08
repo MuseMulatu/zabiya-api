@@ -2,7 +2,12 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth';
-import { addAlias } from '../controllers/alias';
+
+import { 
+  requestAliasOtp, 
+  verifyAndAddAlias, 
+  quickActivateTelegram 
+} from '../controllers/alias';
 
 const router = Router();
 
@@ -14,7 +19,7 @@ const router = Router();
  */
 const aliasLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 15, // Limit each IP to 15 alias creations per window
+  max: 15, // Limit each IP to 15 alias requests per window
   message: { error: 'Too many alias requests. Please wait a few minutes.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -25,11 +30,24 @@ const aliasLimiter = rateLimit({
 // ------------------------------------------------------------------
 
 /**
- * POST /api/alias/add
- * @desc Securely adds a new verified alias (Phone, TG, or IG) to the user's vault.
+ * 1. POST /api/alias/request-otp
+ * @desc Generates an OTP and tells the frontend to redirect to the Bot.
  * @access Private (Requires JWT)
- * @cost 2 Orbit Slots
  */
-router.post('/add', aliasLimiter, requireAuth, addAlias);
+router.post('/request-otp', aliasLimiter, requireAuth, requestAliasOtp);
+
+/**
+ * 2. POST /api/alias/verify
+ * @desc Verifies the OTP, deducts 2 slots, adds the alias, and checks for instant matches.
+ * @access Private (Requires JWT)
+ */
+router.post('/verify', aliasLimiter, requireAuth, verifyAndAddAlias);
+
+/**
+ * 3. POST /api/alias/quick-activate
+ * @desc Upsell! Bypasses OTP to instantly activate a known Telegram handle. Deducts 2 slots.
+ * @access Private (Requires JWT)
+ */
+router.post('/quick-activate', aliasLimiter, requireAuth, quickActivateTelegram);
 
 export default router;

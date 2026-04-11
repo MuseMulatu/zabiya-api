@@ -24,12 +24,11 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
     }
 
 // 2. 🌐 SCRAPE TELEBIRR RECEIPT (With Browser Spoofing)
-// This uses a public bridge to hide your RackNerd IP from the firewall
-const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`)}`;
 
+const url = `http://api.scraperapi.com?api_key=d16d7608804dafe063dc80e7ed20db9e&url=https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`;
+// ScraperAPI returns the raw HTML of the target page perfectly, so you don't use .json()
 const response = await fetch(url);
-const data = await response.json();
-const html = data.contents; // The actual HTML is inside the 'contents' key
+const html = await response.text();
 
     if (!html || html.includes('No Data Found') || html.includes('Invalid')) {
       res.status(404).json({ error: 'Invalid Transaction ID. Receipt not found.' });

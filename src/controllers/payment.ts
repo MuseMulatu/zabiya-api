@@ -54,7 +54,8 @@ export const paymentWebhook = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const { sessionId, status, amount, currency } = req.body;
+    // 🚨 FIX: Extract 'uuid' from Arifpay payload but call it 'sessionId' locally
+    const { uuid: sessionId, status, amount, currency } = req.body;
 
     if (!sessionId || !status) {
       res.status(400).json({ error: 'Malformed webhook payload.' });
@@ -198,27 +199,40 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
         status: 'PENDING'
       }
     });
-const payload = {
-      cancelUrl: `${APP_BASE_URL}/dashboard?payment=cancelled`,
-      errorUrl: `${APP_BASE_URL}/dashboard?payment=error`,
-      successUrl: `${APP_BASE_URL}/dashboard?payment=success`,
+// 5. Build ArifPay Payload (Optimized from official Docs)
+    const payload = {
+      cancelUrl: `${process.env.FRONTEND_URL}/dashboard?payment=cancelled`,
+      errorUrl: `${process.env.FRONTEND_URL}/dashboard?payment=error`,
+      successUrl: `${process.env.FRONTEND_URL}/dashboard?payment=success`,
       notifyUrl: `${process.env.API_BASE_URL}/api/payment/webhook`,
-      phone: formattedPhone,
-      email: "support@zabiya.com",
-      amount: amount,
+      
+      // Phone MUST be format: 2519XXXXXXXX (No + or 09)
+      phone: formattedPhone, 
+      
+      // 🚨 MAGIC SANDBOX EMAIL: Forces an automatic "SUCCESS" webhook for testing
+      email: "telebirrTest@gmail.com", 
+      
+      amount: amount,              
       nonce: nonce,
-      expireDate: expireDateStr,
+      expireDate: expireDateStr, // Ensure your backend generates a future date string
       
-      // What the user sees:
-      paymentMethods: ["TELEBIRR", "CBE", "MPESA"], 
+      // 🚨 FIXED: MPESSA requires double 'S' based on Arifpay schema
+      paymentMethods: ["TELEBIRR", "CBE", "MPESSA"], 
       
-      items: [{ name: `Orbit ${packageType} Package`, price: amount, quantity: 1, image: "" }],
+      items: [
+        { 
+          name: `Orbit ${packageType} Package`, 
+          price: amount, 
+          quantity: 1, 
+          description: "Zabiya Identity Vault Slots" // Added to strictly match their example
+        }
+      ],
       
-      // 👇 THE SANDBOX BYPASS
+      // Sandbox Dummy Account (Change to real CBE details when going Live)
       beneficiaries: [ 
         {
-          accountNumber: "01320811436100", // ArifPay's official sandbox test account
-          bank: "AWINETAA",                // The raw routing code for Awash
+          accountNumber: "01320811436100", 
+          bank: "AWINETAA",                
           amount: amount
         }
       ],
@@ -266,7 +280,8 @@ const payload = {
 // --- 2. SECURE WEBHOOK HANDLER ---
 export const handleWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { sessionId, nonce } = req.body;
+    // 🚨 FIX: Extract 'uuid' from Arifpay payload but call it 'sessionId' locally
+    const { uuid: sessionId, nonce } = req.body;
     if (!sessionId) {
       res.status(400).send('Missing Session ID');
       return;

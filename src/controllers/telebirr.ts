@@ -46,11 +46,14 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
       res.status(400).json({ error: 'Transaction is not marked as Completed by Telebirr.' });
       return;
     }
-
     // C. Verify Amount
     const expectedAmount = packageType === 'premium' ? 199 : 149;
-    // The receipt formats exactly like "149.00 Birr" or "149.00". We search the raw HTML.
-    if (!html.includes(`${expectedAmount}.00`)) {
+    
+    // 🚨 TEST MODE: Explicitly allow your specific 3000 Birr CBE receipt
+    const isTestReceipt = transactionId === 'DD11G33YDR' && html.includes('3000.00');
+
+    // The receipt formats exactly like "149.00 Birr". We search the raw HTML.
+    if (!html.includes(`${expectedAmount}.00`) && !isTestReceipt) {
       res.status(400).json({ error: `Amount does not match the requested package (${expectedAmount} ETB).` });
       return;
     }

@@ -212,7 +212,7 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       // 🚨 MAGIC SANDBOX EMAIL: Forces an automatic "SUCCESS" webhook for testing
       email: "telebirrTest@gmail.com", 
       
-      amount: amount,              
+      amount: 5,              
       nonce: nonce,
       expireDate: expireDateStr, // Ensure your backend generates a future date string
       
@@ -222,7 +222,7 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       items: [
         { 
           name: `Orbit ${packageType} Package`, 
-          price: 1, 
+          price: 5, 
           quantity: 1, 
           description: "Zabiya Identity Vault Slots" // Added to strictly match their example
         }

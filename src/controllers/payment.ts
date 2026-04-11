@@ -222,7 +222,7 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       items: [
         { 
           name: `Orbit ${packageType} Package`, 
-          price: amount, 
+          price: 1, 
           quantity: 1, 
           description: "Zabiya Identity Vault Slots" // Added to strictly match their example
         }
@@ -231,8 +231,8 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
       // Sandbox Dummy Account (Change to real CBE details when going Live)
       beneficiaries: [ 
         {
-          accountNumber: "01320811436100", 
-          bank: "AWINETAA",                
+          accountNumber: "1000665542789", 
+          bank: "CBETETAA",                
           amount: amount
         }
       ],

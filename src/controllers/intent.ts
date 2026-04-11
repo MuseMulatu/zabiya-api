@@ -323,6 +323,18 @@ const decryptedAliases = rawAliases.map(alias => {
     value: alias.encrypted_value ? decryptData(alias.encrypted_value) : 'Hidden'
   };
 });
+
+// 🚨 2. THE TELEGRAM UPSELL LOGIC
+    // Check if they ALREADY have a verified Telegram alias. 
+// 2. THE TELEGRAM UPSELL LOGIC
+    const hasActiveTelegram = decryptedAliases.some(a => a.type === 'telegram' && a.verified === true);
+    
+    let inactiveHandle = null;
+    // 🚨 If they don't have an active alias, BUT we have their encrypted username from the User table...
+    if (!hasActiveTelegram && user.telegram_username_enc) { 
+      inactiveHandle = decryptData(user.telegram_username_enc); // 👈 Decrypt it and send to frontend!
+    }
+
 const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -418,6 +430,7 @@ const user = await prisma.user.findUnique({
       data: {
         wallet: { slots: user.wallet.slots_balance }, // 👈 Just one number now
         aliases: decryptedAliases,
+        inactive_telegram_handle: inactiveHandle, // 👈 Frontend catches this and shows the banner!
         active_intents_count: user._count.intents,
         active_intents: activeIntents, 
         expired_intents: expiredIntents,

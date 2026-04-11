@@ -11,6 +11,7 @@ model User {
   id               String     @id @default(uuid())
   phone_encrypted  String     // Symmetrically encrypted
   telegram_chat_id String?    @unique
+  telegram_username_enc String?
   gender           String?    // 'male', 'female'
   birth_date       DateTime?
   created_at       DateTime   @default(now())
@@ -46,12 +47,10 @@ model Transaction {
   user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-// ⚠️ IMPORTANT: Add `transactions Transaction[]` inside your `User` model so Prisma knows about the relation!
 
 model Wallet {
   id             String   @id @default(uuid())
   user_id        String   @unique
-  
   // 👈 THE UNIFIED CURRENCY
   slots_balance  Int      @default(0) 
   

@@ -338,6 +338,7 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
 
     // Cryptographic Processing
     const encryptedPhone = encryptData(phone_number);
+    const encryptedUsername = username ? encryptData(username) : null; // 👈 Encrypt the username!
     const hashedPhone = hashIdentifier('phone', phone_number);
     const hashedTelegram = username ? hashIdentifier('telegram', username) : null;
 
@@ -351,6 +352,7 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
           data: {
             telegram_chat_id: chat_id,
             phone_encrypted: encryptedPhone,
+            telegram_username_enc: encryptedUsername
           }
         });
         // 3. Slot Architecture Fix: Initialize Wallet
@@ -364,7 +366,7 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
         // Update existing user
         dbUser = await tx.user.update({
           where: { id: dbUser.id },
-          data: { phone_encrypted: encryptedPhone, updated_at: new Date() }
+          data: { phone_encrypted: encryptedPhone, telegram_username_enc: encryptedUsername, updated_at: new Date() }
         });
       }
 

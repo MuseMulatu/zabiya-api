@@ -233,7 +233,7 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
         {
           accountNumber: "1000665542789", 
           bank: "CBETETAA",                
-          amount: amount
+          amount: 5
         }
       ],
       lang: "EN"

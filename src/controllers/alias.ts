@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { prisma } from '../lib/db/prisma';
 import { hashIdentifier } from '../lib/hashing';
 import { normalizeIdentifier } from '../lib/security/normalization';
+import { encryptData } from '../lib/encryption';
 
 /**
  * STEP 1: Request OTP (100% Telegram Bot Flow)
@@ -76,6 +77,7 @@ export const verifyAndAddAlias = async (req: AuthenticatedRequest, res: Response
     }
 
     const hashedValue = hashIdentifier(type, normalizedIdentifier);
+    const encryptedValue = encryptData(normalizedIdentifier); // 👈 Generate the locked string
 
     await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({ where: { user_id: userId } });
@@ -91,6 +93,7 @@ export const verifyAndAddAlias = async (req: AuthenticatedRequest, res: Response
           user_id: userId,
           type: type,
           hashed_value: hashedValue,
+          encrypted_value: encryptedValue,
           verified: true,
           verification_method: type === 'instagram' ? 'self_attest' : 'telegram_bot_bridge'
         }
@@ -119,7 +122,9 @@ export const quickActivateTelegram = async (req: AuthenticatedRequest, res: Resp
     const { telegramUsername } = req.body;
     if (!telegramUsername) return void res.status(400).json({ error: 'Username required.' });
 
+    // 1. Create BOTH the one-way hash (for matching) and the two-way lock (for UI)
     const hashedTelegram = hashIdentifier('telegram', telegramUsername);
+    const encryptedTelegram = encryptData(telegramUsername); // 👈 GENERATE IT HERE
 
     await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({ where: { user_id: userId } });
@@ -129,13 +134,17 @@ export const quickActivateTelegram = async (req: AuthenticatedRequest, res: Resp
 
       await tx.alias.create({
         data: {
-          user_id: userId, type: 'telegram', hashed_value: hashedTelegram,
-          verified: true, verification_method: 'telegram_auth_extracted'
+          user_id: userId, 
+          type: 'telegram', 
+          hashed_value: hashedTelegram,
+          encrypted_value: encryptedTelegram, // 👈 ADD IT HERE TO SAVE IN DB
+          verified: true, 
+          verification_method: 'telegram_auth_extracted'
         }
       });
     });
 
-    const inboundIntents = await prisma.intent.findMany({ where: { target_hash: hashedTelegram, active: true } });
+    const inboundIntents = await prisma.intent.findMany({ where: { target_hash: hashedTelegram, status: 'active' } });
     res.json({ success: true, newMatchFound: inboundIntents.length > 0 });
   } catch (error: any) {
     res.status(error.message === 'Insufficient slots.' ? 402 : 500).json({ error: error.message || 'Failed.' });

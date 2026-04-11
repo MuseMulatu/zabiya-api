@@ -65,6 +65,7 @@ model Alias {
   user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   type                String   // 'phone', 'telegram', 'instagram'
   hashed_value        String   // SHA-256 hashed value (identifier + PEPPER)
+  encrypted_value     String?  // 👈 NEW: Stores the 2-way locked string
   verified            Boolean  @default(false)
   verification_method String?  // e.g., 'telegram_auth', 'sms_otp', 'oauth'
   created_at          DateTime @default(now())
@@ -72,6 +73,8 @@ model Alias {
   @@index([hashed_value])
   @@unique([user_id, type, hashed_value])
 }
+
+
 
 model Intent {
   id               String   @id @default(uuid())

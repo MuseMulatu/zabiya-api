@@ -312,6 +312,17 @@ export const getDashboard = async (req: AuthenticatedRequest, res: Response): Pr
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
+    const rawAliases = await prisma.alias.findMany({ where: { user_id: userId } });\// Decrypt them before sending to the frontend!
+const decryptedAliases = rawAliases.map(alias => {
+  return {
+    id: alias.id,
+    type: alias.type,
+    verified: alias.verified,
+    created_at: alias.created_at,
+    // 🚨 If it has an encrypted value, unlock it! Otherwise, fall back to hidden.
+    value: alias.encrypted_value ? decryptData(alias.encrypted_value) : 'Hidden'
+  };
+});
 const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -406,12 +417,12 @@ const user = await prisma.user.findUnique({
       success: true,
       data: {
         wallet: { slots: user.wallet.slots_balance }, // 👈 Just one number now
-        aliases: user.aliases,
+        aliases: decryptedAliases,
         active_intents_count: user._count.intents,
         active_intents: activeIntents, 
         expired_intents: expiredIntents,
         matches: processedMatches,
-        blocked_connections: blockedConnections
+        blocked_connections: blockedConnections,
       }
     });
 

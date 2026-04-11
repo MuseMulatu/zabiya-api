@@ -8,7 +8,7 @@ import { prisma } from '../lib/db/prisma';
 const fetchWithRetry = async (url: string, retries = 3, backoff = 2000): Promise<globalThis.Response> => { // 👈 FIX IS HERE
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 👈 30 seconds!
     
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);

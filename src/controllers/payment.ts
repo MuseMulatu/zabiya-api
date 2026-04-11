@@ -224,7 +224,7 @@ export const initializePayment = async (req: AuthenticatedRequest, res: Response
           name: `Orbit ${packageType} Package`, 
           price: 5, 
           quantity: 1, 
-          description: "Zabiya Identity Vault Slots" // Added to strictly match their example
+          description: "Zabiya basic pack" // Added to strictly match their example
         }
       ],
       

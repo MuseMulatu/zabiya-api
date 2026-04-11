@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { requireAuth } from '../middleware/auth'; 
 import { initializePayment, handleWebhook } from '../controllers/payment';
+import { verifyTelebirrTransaction } from '../controllers/telebirr';
 const router = Router();
 
 // Rate limiting: Prevent spamming of the payment gateway init endpoint
@@ -16,6 +17,8 @@ const initLimiter = rateLimit({
 // POST /api/payment/initialize
 // Protected: Only authenticated users can generate a checkout session
 router.post('/initialize', initLimiter, requireAuth, initializePayment);
+
+router.post('/telebirr-verify', requireAuth, verifyTelebirrTransaction);
 
 // POST /api/payment/webhook
 // Public: ArifPay's servers hit this endpoint to confirm payment success/failure

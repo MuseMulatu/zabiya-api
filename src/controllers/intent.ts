@@ -324,16 +324,6 @@ const decryptedAliases = rawAliases.map(alias => {
   };
 });
 
-// 🚨 2. THE TELEGRAM UPSELL LOGIC
-    // Check if they ALREADY have a verified Telegram alias. 
-// 2. THE TELEGRAM UPSELL LOGIC
-    const hasActiveTelegram = decryptedAliases.some(a => a.type === 'telegram' && a.verified === true);
-    
-    let inactiveHandle = null;
-    // 🚨 If they don't have an active alias, BUT we have their encrypted username from the User table...
-    if (!hasActiveTelegram && user.telegram_username_enc) { 
-      inactiveHandle = decryptData(user.telegram_username_enc); // 👈 Decrypt it and send to frontend!
-    }
 
 const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -352,6 +342,16 @@ const user = await prisma.user.findUnique({
     if (!user || !user.wallet) {
       res.status(404).json({ error: 'User data not found.' });
       return;
+    }
+
+    // 🚨 2. THE TELEGRAM UPSELL LOGIC
+    // Check if they ALREADY have a verified Telegram alias. 
+    const hasActiveTelegram = decryptedAliases.some(a => a.type === 'telegram' && a.verified === true);
+    
+    let inactiveHandle = null;
+    // 🚨 If they don't have an active alias, BUT we have their encrypted username from the User table...
+    if (!hasActiveTelegram && user.telegram_username_enc) { 
+      inactiveHandle = decryptData(user.telegram_username_enc); // 👈 Decrypt it and send to frontend!
     }
 
     // 2. Fetch EXPIRED Intents for the user

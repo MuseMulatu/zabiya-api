@@ -5,9 +5,8 @@ import { prisma } from '../lib/db/prisma';
 /**
  * Robust Fetch Wrapper with Exponential Backoff Retries
  */
-const fetchWithRetry = async (url: string, retries = 3, backoff = 2000): Promise<Response> => {
+const fetchWithRetry = async (url: string, retries = 3, backoff = 2000): Promise<globalThis.Response> => { // 👈 FIX IS HERE
   try {
-    // Add a 10-second timeout to the fetch request itself
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     
@@ -19,7 +18,6 @@ const fetchWithRetry = async (url: string, retries = 3, backoff = 2000): Promise
     if (retries > 0) {
       console.warn(`⚠️ [Telebirr Fetch] Network issue or timeout. Retrying in ${backoff/1000}s... (${retries} attempts left)`);
       await new Promise(resolve => setTimeout(resolve, backoff));
-      // Increase backoff time by 1.5x for the next attempt (Exponential Backoff)
       return fetchWithRetry(url, retries - 1, backoff * 1.5);
     }
     throw new Error(`Failed to fetch after multiple attempts: ${error.message}`);

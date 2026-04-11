@@ -23,9 +23,21 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
       return;
     }
 
-    // 2. 🌐 SCRAPE TELEBIRR RECEIPT
+// 2. 🌐 SCRAPE TELEBIRR RECEIPT (With Browser Spoofing)
     const url = `https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`;
-    const response = await fetch(url);
+    
+    const response = await fetch(url, {
+      headers: {
+        // 🎭 The "Chrome Mask"
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://transactioninfo.ethiotelecom.et/',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    });
+
     const html = await response.text();
 
     if (!html || html.includes('No Data Found') || html.includes('Invalid')) {
@@ -86,6 +98,6 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
 
   } catch (error) {
     console.error('[Telebirr Verifier Error]', error);
-    res.status(500).json({ error: 'Failed to verify transaction.' });
+    res.status(500).json({ error: 'Servers are currently unreachable. Please try verifying again in a minute.' });
   }
 };

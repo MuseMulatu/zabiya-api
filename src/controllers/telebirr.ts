@@ -24,21 +24,12 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
     }
 
 // 2. 🌐 SCRAPE TELEBIRR RECEIPT (With Browser Spoofing)
-    const url = `https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        // 🎭 The "Chrome Mask"
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://transactioninfo.ethiotelecom.et/',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    });
+// This uses a public bridge to hide your RackNerd IP from the firewall
+const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`)}`;
 
-    const html = await response.text();
+const response = await fetch(url);
+const data = await response.json();
+const html = data.contents; // The actual HTML is inside the 'contents' key
 
     if (!html || html.includes('No Data Found') || html.includes('Invalid')) {
       res.status(404).json({ error: 'Invalid Transaction ID. Receipt not found.' });

@@ -312,7 +312,7 @@ export const getDashboard = async (req: AuthenticatedRequest, res: Response): Pr
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const rawAliases = await prisma.alias.findMany({ where: { user_id: userId } });\// Decrypt them before sending to the frontend!
+    const rawAliases = await prisma.alias.findMany({ where: { user_id: userId } });// Decrypt them before sending to the frontend!
 const decryptedAliases = rawAliases.map(alias => {
   return {
     id: alias.id,

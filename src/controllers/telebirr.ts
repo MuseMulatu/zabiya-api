@@ -2,6 +2,30 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { prisma } from '../lib/db/prisma';
 
+/**
+ * Robust Fetch Wrapper with Exponential Backoff Retries
+ */
+const fetchWithRetry = async (url: string, retries = 3, backoff = 2000): Promise<Response> => {
+  try {
+    // Add a 10-second timeout to the fetch request itself
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    return response;
+  } catch (error: any) {
+    if (retries > 0) {
+      console.warn(`⚠️ [Telebirr Fetch] Network issue or timeout. Retrying in ${backoff/1000}s... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      // Increase backoff time by 1.5x for the next attempt (Exponential Backoff)
+      return fetchWithRetry(url, retries - 1, backoff * 1.5);
+    }
+    throw new Error(`Failed to fetch after multiple attempts: ${error.message}`);
+  }
+};
+
 export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
@@ -23,12 +47,23 @@ export const verifyTelebirrTransaction = async (req: AuthenticatedRequest, res: 
       return;
     }
 
-// 2. 🌐 SCRAPE TELEBIRR RECEIPT (With Browser Spoofing)
 
-const url = `http://api.scraperapi.com?api_key=d16d7608804dafe063dc80e7ed20db9e&url=https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`;
-// ScraperAPI returns the raw HTML of the target page perfectly, so you don't use .json()
-const response = await fetch(url);
-const html = await response.text();
+// 2. 🌐 SCRAPE TELEBIRR RECEIPT (With ScraperAPI & Retries)
+    // 🚨 PRO TIP: Move this API key to your .env file later! (e.g., process.env.SCRAPER_API_KEY)
+    const SCRAPER_API_KEY = 'd16d7608804dafe063dc80e7ed20db9e'; 
+    const targetUrl = encodeURIComponent(`https://transactioninfo.ethiotelecom.et/receipt/${transactionId}`);
+    const url = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${targetUrl}`;
+
+    let html = "";
+    try {
+      // We still use our retry wrapper! ScraperAPI can sometimes be slow.
+      const response = await fetchWithRetry(url, 3, 2000); 
+      html = await response.text();
+    } catch (fetchError) {
+      console.error('[Telebirr Fetch Error via Scraper]', fetchError);
+      res.status(503).json({ error: 'Telecom servers are currently unreachable. Please try verifying again.' });
+      return;
+    }
 
     if (!html || html.includes('No Data Found') || html.includes('Invalid')) {
       res.status(404).json({ error: 'Invalid Transaction ID. Receipt not found.' });
@@ -36,7 +71,7 @@ const html = await response.text();
     }
 
     // 3. 🔍 VALIDATION LOGIC
-    // A. Verify Recipient (Muse Mulatu or the masked number)
+    // A. Verify Recipient
     const isCorrectRecipient = html.includes('Muse Mulatu') || html.includes('3090');
     if (!isCorrectRecipient) {
       res.status(400).json({ error: 'Payment was not sent to the official Zabiya account.' });
@@ -48,6 +83,7 @@ const html = await response.text();
       res.status(400).json({ error: 'Transaction is not marked as Completed by Telebirr.' });
       return;
     }
+
     // C. Verify Amount
     const expectedAmount = packageType === 'premium' ? 199 : 149;
     

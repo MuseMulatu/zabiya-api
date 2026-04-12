@@ -28,6 +28,7 @@ export const sendTelegramMessage = async (chatId: string, message: string): Prom
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
+        parse_mode: "MarkdownV2
         // parse_mode: 'HTML' // Uncomment this if you want to use bold/italics in your messages later!
       }),
     });

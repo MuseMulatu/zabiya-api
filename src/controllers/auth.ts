@@ -195,11 +195,10 @@ export const handleTelegramWebhook = async (req: Request, res: Response): Promis
         const pendingOtp = await prisma.otpRequest.findUnique({ where: { phone: normalizedUsername } });
         
         if (pendingOtp && pendingOtp.expires_at > new Date()) {
-          await sendTelegramWithKeyboard(chatId, `🔐 Your Alias Verification Code is: *${pendingOtp.otp_code}*\n\nType this back into the Zabiya website to link this account.`);
+          await sendTelegramWithKeyboard(chatId, `🔐 Your Alias Verification Code is:  \`${pendingOtp.otp_code}\`\n\nType this back into the Zabiya website to link this account.`);
           otpFound = true;
         }
       }
-
       // 2. If no username OTP was found, assume they are verifying a Phone Number!
       if (!otpFound) {
         const keyboard = {
@@ -229,7 +228,7 @@ export const handleTelegramWebhook = async (req: Request, res: Response): Promis
       const pendingOtp = await prisma.otpRequest.findUnique({ where: { phone: normalizedPhone } });
       
       if (pendingOtp && pendingOtp.expires_at > new Date()) {
-        await sendTelegramWithKeyboard(chatId, `🔒 Your Zabiya Code is: *${pendingOtp.otp_code}*\n\nReturn to the web app and enter this code.`);
+        await sendTelegramWithKeyboard(chatId, `🔒 Your Zabiya Code is:  \`${pendingOtp.otp_code}\`\n\nReturn to the web app and enter this code.`);
       } else {
         await sendTelegramWithKeyboard(chatId, "You don't have an active request. Please request a code from the web app first.");
       }
@@ -389,6 +388,7 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
             user_id: dbUser.id,
             type: alias.type,
             hashed_value: alias.hashed_value,
+            encrypted_value: encryptedPhone,
             verified: true,
             verification_method: alias.verification_method
           }

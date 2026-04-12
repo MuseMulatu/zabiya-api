@@ -359,8 +359,24 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
 export const handleSmsWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const { secret, message } = req.body;
-    if (secret !== 'my_super_secret_key_123') {
+    if (secret !== 'muse_ejig_secret_qulf_123') {
       res.status(401).send('Unauthorized'); return;
+    }
+
+    // 3. Extract the Transaction ID and Amount
+    // Handles BOTH "Transaction ID: 123" and "transaction number 123"
+    const txIdMatch = message.match(/(?:ID:|transaction number)\s*([A-Z0-9]+)/i); 
+    
+    // Handles BOTH "received 149.00 Birr" and "received ETB 10.00"
+    const amountMatch = message.match(/received\s*(?:ETB)?\s*([0-9.,]+)\s*(?:Birr)?/i);
+    
+    // Grabs whoever it is from (e.g., "Commercial Bank of Ethiopia")
+    const senderMatch = message.match(/from\s+(.+?)\s+(?:to|on)/i);
+
+    if (!txIdMatch || !amountMatch) {
+      console.log(`[Webhook Ignored] Could not parse text:`, message); // Added this so you can see failures in the logs!
+      res.status(200).send('Ignored: Could not parse ID or amount');
+      return;
     }
 
     const txIdMatch = message.match(/ID:\s*([A-Z0-9]+)/i); 

@@ -354,3 +354,43 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
     res.status(200).send('Error processing webhook'); 
   }
 };
+
+// In src/controllers/payment.ts (or wherever your webhook is)
+export const handleSmsWebhook = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { secret, message } = req.body;
+    if (secret !== 'my_super_secret_key_123') {
+      res.status(401).send('Unauthorized'); return;
+    }
+
+    const txIdMatch = message.match(/ID:\s*([A-Z0-9]+)/i); 
+    const amountMatch = message.match(/received\s*([0-9.]+)\s*Birr/i);
+    const senderMatch = message.match(/from\s+([A-Za-z\s]+)\./i);
+
+    if (!txIdMatch || !amountMatch) {
+      res.status(200).send('Ignored: Not a valid receipt format'); return;
+    }
+
+    const transactionId = txIdMatch[1].toUpperCase();
+    const amount = parseFloat(amountMatch[1]);
+    const senderName = senderMatch ? senderMatch[1].trim() : "Unknown";
+
+    // Dump it into the pool! Use upsert so we don't crash if the SMS arrives twice
+    await prisma.telebirrReceipt.upsert({
+      where: { transaction_id: transactionId },
+      update: {}, 
+      create: {
+        transaction_id: transactionId,
+        amount: amount,
+        sender_name: senderName,
+        status: 'UNCLAIMED'
+      }
+    });
+
+    console.log(`📥 [Pool] Caught Telebirr Receipt: ${transactionId} for ${amount} ETB`);
+    res.status(200).send('Pooled successfully');
+  } catch (error) {
+    console.error('[SMS Webhook Error]', error);
+    res.status(500).send('Error');
+  }
+};

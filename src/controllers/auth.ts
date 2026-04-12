@@ -122,12 +122,13 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
           }
         });
 
-        // Register Verified Alias
+// Register Verified Alias
         await tx.alias.create({
           data: {
             user_id: dbUser.id,
             type: 'phone',
             hashed_value: hashedPhone,
+            encrypted_value: encryptedPhone, // 👈 ADD THIS LINE TO FIX "HIDDEN"
             verified: true,
             verification_method: 'telegram_otp_bridge'
           }
@@ -213,7 +214,7 @@ export const handleTelegramWebhook = async (req: Request, res: Response): Promis
       return;
     }
 
-    // B. Handle Contact Sharing (Catches BOTH Login and Alias phone numbers!)
+// B. Handle Contact Sharing (Catches BOTH Login and Alias phone numbers!)
     if (message.contact) {
       if (message.contact.user_id !== message.from.id) {
         await sendTelegramWithKeyboard(chatId, "⚠️ You can only share your own contact card for security reasons.");
@@ -224,51 +225,57 @@ export const handleTelegramWebhook = async (req: Request, res: Response): Promis
       const normalizedPhone = normalizeIdentifier('phone', message.contact.phone_number);
       const username = message.from.username;
 
-      // 🚨 NEW: Encrypt them right away!
+      // 🚨 1. ENCRYPT EVERYTHING
       const encryptedPhone = encryptData(normalizedPhone);
       const encryptedUsername = username ? encryptData(username) : null;
+      const hashedPhone = hashIdentifier('phone', normalizedPhone);
+      const hashedTelegram = username ? hashIdentifier('telegram', username) : null;
 
-      // This safely hands them the OTP...
+      // 🚨 2. BUILD THE USER PROFILE RIGHT NOW (While we have the TG data!)
+      const dbUser = await prisma.$transaction(async (tx) => {
+        let user = await tx.user.findUnique({ where: { telegram_chat_id: chatId.toString() } });
+
+        if (!user) {
+          // New User!
+          user = await tx.user.create({
+            data: {
+              telegram_chat_id: chatId.toString(),
+              phone_encrypted: encryptedPhone,
+              telegram_username_enc: encryptedUsername
+            }
+          });
+          await tx.wallet.create({ data: { user_id: user.id, slots_balance: 2 } });
+        } else {
+          // Returning User, update their data just in case it changed
+          user = await tx.user.update({
+            where: { id: user.id },
+            data: { phone_encrypted: encryptedPhone, telegram_username_enc: encryptedUsername }
+          });
+        }
+
+        // Always ensure their Phone Alias is perfectly synced
+        await tx.alias.upsert({
+          where: { user_id_type_hashed_value: { user_id: user.id, type: 'phone', hashed_value: hashedPhone } },
+          update: { verified: true, encrypted_value: encryptedPhone },
+          create: {
+            user_id: user.id, type: 'phone', hashed_value: hashedPhone,
+            encrypted_value: encryptedPhone, verified: true, verification_method: 'telegram_contact_share'
+          }
+        });
+
+        // Upsert Telegram Alias IF they verified it explicitly, otherwise leave it for the Upsell!
+        // (We don't create it automatically here anymore so the Dashboard upsell triggers)
+        
+        return user;
+      });
+
+      // 🚨 3. HAND THEM THE OTP
       const pendingOtp = await prisma.otpRequest.findUnique({ where: { phone: normalizedPhone } });
       
       if (pendingOtp && pendingOtp.expires_at > new Date()) {
         await sendTelegramWithKeyboard(chatId, `🔒 Your Zabiya Code is: \`${pendingOtp.otp_code}\`\n\nReturn to the web app and enter this code.`);
       } else {
         await sendTelegramWithKeyboard(chatId, "You don't have an active request. Please request a code from the web app first.");
-      }
-
-      // Upsert Chat ID & Username asynchronously so we have it for matches
-      const hashedPhone = hashIdentifier('phone', normalizedPhone);
-      const existingAlias = await prisma.alias.findFirst({ where: { hashed_value: hashedPhone, verified: true } });
-      
-      if (existingAlias) {
-        await prisma.user.update({
-          where: { id: existingAlias.user_id },
-          data: { 
-            telegram_chat_id: chatId.toString(),
-            telegram_username_enc: encryptedUsername, // 🚨 FIX: Save the encrypted username for the upsell!
-            phone_encrypted: encryptedPhone // 🚨 FIX: Update the phone just in case it was missing
-          } 
-        });
-        
-        if (username && encryptedUsername) {
-          const hashedTelegram = hashIdentifier('telegram', username);
-          await prisma.alias.upsert({
-            where: { user_id_type_hashed_value: { user_id: existingAlias.user_id, type: 'telegram', hashed_value: hashedTelegram } },
-            update: { 
-              verified: true,
-              encrypted_value: encryptedUsername // 🚨 FIX: Update old aliases!
-            },
-            create: { 
-              user_id: existingAlias.user_id, 
-              type: 'telegram', 
-              hashed_value: hashedTelegram, 
-              encrypted_value: encryptedUsername, // 🚨 FIX: Save the actual TG handle in the vault!
-              verified: true, 
-              verification_method: 'telegram_auth' 
-            }
-          });
-        }
       }
     }
 

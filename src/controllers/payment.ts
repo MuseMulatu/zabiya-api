@@ -358,6 +358,8 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
 /// In src/controllers/payment.ts (or wherever your webhook is)
 export const handleSmsWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('Incoming Content-Type:', req.headers['content-type']);
+    console.log('Incoming Raw Body:', req.body);
     const { secret, message } = req.body;
     if (secret !== 'muse_ejig_secret_qulf_123') {
       res.status(401).send('Unauthorized'); return;

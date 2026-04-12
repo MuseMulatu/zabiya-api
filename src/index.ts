@@ -43,6 +43,10 @@ app.use(express.json({
   }
 })); 
 
+
+// 🚨 MACRODROID FIX: Allows Express to read the URL-encoded data from the phone
+app.use(express.urlencoded({ extended: true }));
+
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/intent', intentRoutes);

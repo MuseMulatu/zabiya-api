@@ -355,7 +355,7 @@ export const handleWebhook = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// In src/controllers/payment.ts (or wherever your webhook is)
+/// In src/controllers/payment.ts (or wherever your webhook is)
 export const handleSmsWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const { secret, message } = req.body;
@@ -374,21 +374,18 @@ export const handleSmsWebhook = async (req: Request, res: Response): Promise<voi
     const senderMatch = message.match(/from\s+(.+?)\s+(?:to|on)/i);
 
     if (!txIdMatch || !amountMatch) {
-      console.log(`[Webhook Ignored] Could not parse text:`, message); // Added this so you can see failures in the logs!
+      console.log(`[Webhook Ignored] Could not parse text:`, message);
       res.status(200).send('Ignored: Could not parse ID or amount');
       return;
     }
 
-    const txIdMatch = message.match(/ID:\s*([A-Z0-9]+)/i); 
-    const amountMatch = message.match(/received\s*([0-9.]+)\s*Birr/i);
-    const senderMatch = message.match(/from\s+([A-Za-z\s]+)\./i);
-
-    if (!txIdMatch || !amountMatch) {
-      res.status(200).send('Ignored: Not a valid receipt format'); return;
-    }
-
     const transactionId = txIdMatch[1].toUpperCase();
-    const amount = parseFloat(amountMatch[1]);
+    
+    // Safety check: sometimes numbers have commas in them (e.g., 1,000.00)
+    // We need to strip the comma before running parseFloat, otherwise it cuts off at the comma.
+    const cleanAmountString = amountMatch[1].replace(/,/g, '');
+    const amount = parseFloat(cleanAmountString);
+    
     const senderName = senderMatch ? senderMatch[1].trim() : "Unknown";
 
     // Dump it into the pool! Use upsert so we don't crash if the SMS arrives twice

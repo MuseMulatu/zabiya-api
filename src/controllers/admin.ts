@@ -6,6 +6,17 @@ import { decryptData } from '../lib/encryption';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
+// 🛡️ SHOCK ABSORBER: Safely attempt decryption without crashing the loop
+const safeDecrypt = (encryptedString: string | null | undefined, fallback: string): string => {
+  if (!encryptedString) return fallback; // Catch nulls from legacy users
+  try {
+    const result = decryptData(encryptedString);
+    return result ? result : fallback; // Catch if decryptData returns null
+  } catch (error) {
+    return 'Decryption Error'; // Catch corrupted strings
+  }
+};
+
 // 1. ADMIN LOGIN
 export const adminLogin = async (req: Request, res: Response): Promise<void> => {
   const { password } = req.body;
@@ -67,10 +78,10 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
       orderBy: { created_at: 'desc' }
     });
 
-    const decryptedUsers = users.map(u => ({
+   const decryptedUsers = users.map(u => ({
       id: u.id,
-      phone: u.phone_encrypted ? decryptData(u.phone_encrypted) : 'Error',
-      telegram: u.telegram_username_enc ? decryptData(u.telegram_username_enc) : null,
+      phone: safeDecrypt(u.phone_encrypted, 'Missing'),
+      telegram: safeDecrypt(u.telegram_username_enc, 'None'),
       slots: u.wallet?.slots_balance || 0,
       alias_count: u._count.aliases,
       intent_count: u._count.intents,
@@ -84,9 +95,10 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 };
 
 // 4. GET USER DETAILS
-export const getUserDetails = async (req: Request, res: Response): Promise<void> => {
+    export const getUserDetails = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string; // ✅ We force it to be a string!
+    
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
@@ -101,14 +113,17 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
 
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
-    res.json({
+res.json({
       success: true,
       user: {
         id: user.id,
-        phone: user.phone_encrypted ? decryptData(user.phone_encrypted) : 'Error',
-        telegram: user.telegram_username_enc ? decryptData(user.telegram_username_enc) : null,
+        phone: safeDecrypt(user.phone_encrypted, 'Missing'),
+        telegram: safeDecrypt(user.telegram_username_enc, 'None'),
         slots: user.wallet?.slots_balance || 0,
-        aliases: user.aliases.map(a => ({ type: a.type, value: a.encrypted_value ? decryptData(a.encrypted_value) : 'Hash Only' })),
+        aliases: user.aliases.map(a => ({ 
+          type: a.type, 
+          value: safeDecrypt(a.encrypted_value, 'Hash Only') 
+        })),
         intents: user.intents,
         transactions: user.transactions,
         total_matches: user.matches_a.length + user.matches_b.length

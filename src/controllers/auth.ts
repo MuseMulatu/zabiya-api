@@ -322,18 +322,12 @@ export const updateDemographics = async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ error: 'Failed to update demographics.' });
   }
 };
-
-/**
- * Handles Telegram Webhook payload.
- * Verifies via X-Telegram-Bot-Api-Secret-Token header.
- */
 export const handleTelegramAuth = async (req: Request, res: Response): Promise<void> => {
   try {
-    // 1. Verify Webhook Authenticity (Header Validation)
     const secretToken = req.headers['x-telegram-bot-api-secret-token'];
     
-    if (secretToken !== TELEGRAM_BOT_TOKEN) {
-      res.status(401).json({ error: 'Unauthorized: Invalid Telegram Webhook Secret Token.' });
+    if (secretToken !== process.env.TELEGRAM_BOT_TOKEN) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
@@ -344,28 +338,39 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // 2. Contact Ownership Validation
-    if (message.contact.user_id !== message.from.id) {
-      res.status(403).json({ error: 'Forbidden: Contact card does not belong to the authenticating user.' });
-      return;
-    }
+    // 🚨 LOG 1: RAW EXTRACTION
+    console.log("\n=== 🕵️‍♂️ X-RAY 1: RAW TELEGRAM DATA ===");
+    console.log("Raw Phone:", message.contact.phone_number);
+    console.log("Raw Username from 'message.from':", message.from.username);
+    console.log("Raw Username from 'message.chat':", message.chat.username);
+    console.log("=======================================\n");
 
     const phone_number = message.contact.phone_number;
     const chat_id = message.chat.id.toString();
-    const username = message.from.username;
+    // Fallback: Check both .from and .chat just in case Telegram formats it weirdly
+    const username = message.from?.username || message.chat?.username || null; 
 
     // Cryptographic Processing
     const encryptedPhone = encryptData(phone_number);
-    const encryptedUsername = username ? encryptData(username) : null; // 👈 Encrypt the username!
+    const encryptedUsername = username ? encryptData(username) : null; 
     const hashedPhone = hashIdentifier('phone', phone_number);
     const hashedTelegram = username ? hashIdentifier('telegram', username) : null;
+
+    // 🚨 LOG 2: ENCRYPTION CHECK
+    console.log("\n=== 🕵️‍♂️ X-RAY 2: ENCRYPTION RESULTS ===");
+    console.log("Did phone encrypt?", !!encryptedPhone);
+    console.log("Did username encrypt?", !!encryptedUsername, "| Value:", encryptedUsername ? "SUCCESS" : "NULL");
+    console.log("=======================================\n");
 
     // Database Transaction
     const user = await prisma.$transaction(async (tx) => {
       let dbUser = await tx.user.findUnique({ where: { telegram_chat_id: chat_id } });
 
+      // 🚨 LOG 3: DATABASE SAVE PREP
+      console.log(`\n=== 🕵️‍♂️ X-RAY 3: DB USER SAVE ===`);
+      console.log(`Saving Username Encrypted as:`, encryptedUsername);
+
       if (!dbUser) {
-        // Create new user
         dbUser = await tx.user.create({
           data: {
             telegram_chat_id: chat_id,
@@ -373,27 +378,23 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
             telegram_username_enc: encryptedUsername
           }
         });
-        // 3. Slot Architecture Fix: Initialize Wallet
-        await tx.wallet.create({
-          data: {
-            user_id: dbUser.id,
-            slots_balance: 2 // 👈 Unified currency: Grant 2 free slots
-          }
-        });
+        await tx.wallet.create({ data: { user_id: dbUser.id, slots_balance: 2 } });
       } else {
-        // Update existing user
         dbUser = await tx.user.update({
           where: { id: dbUser.id },
-          data: { phone_encrypted: encryptedPhone, telegram_username_enc: encryptedUsername, updated_at: new Date() }
+          data: { 
+            phone_encrypted: encryptedPhone, 
+            telegram_username_enc: encryptedUsername, 
+            updated_at: new Date() 
+          }
         });
       }
 
-// Prepare & Upsert Aliases
       const aliasesToUpsert = [
         { 
           type: 'phone', 
           hashed_value: hashedPhone, 
-          encrypted_value: encryptedPhone, // 👈 Explicitly pass the encrypted phone
+          encrypted_value: encryptedPhone,
           verification_method: 'telegram_contact_share' 
         }
       ];
@@ -402,10 +403,14 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
         aliasesToUpsert.push({ 
           type: 'telegram', 
           hashed_value: hashedTelegram, 
-          encrypted_value: encryptedUsername, // 👈 Explicitly pass the encrypted username
+          encrypted_value: encryptedUsername, 
           verification_method: 'telegram_auth' 
         });
       }
+
+      // 🚨 LOG 4: ALIAS SAVE PREP
+      console.log(`\n=== 🕵️‍♂️ X-RAY 4: DB ALIAS SAVE ===`);
+      console.log(`Aliases queued for saving:`, aliasesToUpsert.map(a => `${a.type} -> Encrypted: ${!!a.encrypted_value}`));
 
       for (const alias of aliasesToUpsert) {
         await tx.alias.upsert({
@@ -414,35 +419,34 @@ export const handleTelegramAuth = async (req: Request, res: Response): Promise<v
           },
           update: { 
             verified: true,
-            encrypted_value: alias.encrypted_value // 🚨 FIX: Ensure it updates old "Hidden" records!
+            encrypted_value: alias.encrypted_value 
           },
           create: {
             user_id: dbUser.id,
             type: alias.type,
             hashed_value: alias.hashed_value,
-            encrypted_value: alias.encrypted_value, // 🚨 FIX: Uses the correct dynamic encrypted value
+            encrypted_value: alias.encrypted_value,
             verified: true,
             verification_method: alias.verification_method
           }
         });
       }
+
       return dbUser;
     });
 
-    const token = jwt.sign({ userId: user.id, chatId: user.telegram_chat_id }, JWT_SECRET, { expiresIn: '30d' });
+    console.log("\n=== ✅ X-RAY COMPLETE: TRANSACTION SUCCESS ===\n");
+
+    const token = jwt.sign({ userId: user.id, chatId: user.telegram_chat_id }, process.env.JWT_SECRET as string, { expiresIn: '30d' });
 
     res.status(200).json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        requires_demographics: !user.gender || !user.birth_date
-      }
+      user: { id: user.id, requires_demographics: !user.gender || !user.birth_date }
     });
 
   } catch (error) {
-    console.error('[Auth Error]', error);
-    // Be careful not to leak exact database collision errors to the client
+    console.error('\n❌ [Auth Error X-RAY]:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };

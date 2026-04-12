@@ -1,10 +1,24 @@
 import { Response } from 'express';
 import { prisma } from '../lib/db/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { hashIdentifier, AliasType } from '../lib/hashing'; // Ensure the path matches your project
+import { hashIdentifier, AliasType } from '../lib/hashing'; 
 import { triggerCrushNotification, triggerMatchNotification } from '../lib/notifications/engine';
 import { decryptData, encryptData } from '../lib/encryption';
 import { normalizeIdentifier } from '../lib/security/normalization';
+
+// ==========================================
+// 🛡️ SHOCK ABSORBER FUNCTION
+// Safely attempt decryption without crashing the server
+// ==========================================
+const safeDecrypt = (encryptedString: string | null | undefined, fallback: string): string => {
+  if (!encryptedString) return fallback; 
+  try {
+    const result = decryptData(encryptedString);
+    return result ? result : fallback; 
+  } catch (error) {
+    return fallback; // Return fallback silently instead of crashing
+  }
+};
 
 // --- HELPER: Age Calculation ---
 const calculateAge = (birthDate: Date): number => {
@@ -31,14 +45,11 @@ const passesAgeFirewall = (birthDateA: Date | null, birthDateB: Date | null): bo
 };
 
 // --- 1. REVOKE INTENT (Audit-Safe) ---
-// --- 1. REVOKE INTENT (Audit-Safe) ---
 export const revokeIntent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    // 👈 FIX 1: Explicitly cast to string
     const intentId = req.params.id as string; 
 
-    // 👈 FIX 2: Add strict null check
     if (!userId || !intentId) {
       res.status(400).json({ error: 'Missing user or intent ID.' });
       return;
@@ -50,7 +61,6 @@ export const revokeIntent = async (req: AuthenticatedRequest, res: Response): Pr
       return;
     }
 
-    // Soft delete - no refund issued
     await prisma.intent.update({
       where: { id: intentId },
       data: { status: 'REVOKED' }
@@ -76,7 +86,6 @@ export const blockMatch = async (req: AuthenticatedRequest, res: Response): Prom
 
     const otherUserId = match.user_a_id === userId ? match.user_b_id : match.user_a_id;
 
-    // Atomic transaction to block the match and record the block
     await prisma.$transaction(async (tx) => {
       await tx.match.update({
         where: { id: matchId },
@@ -113,11 +122,8 @@ export const unblockUser = async (req: AuthenticatedRequest, res: Response): Pro
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
-/**
- * POST /api/intent/add
- * Fully atomic, single-transaction engine handling slot deduction, 
- * expiration logic, and double-blind mutual matching.
- */
+
+// --- 4. ADD INTENT ---
 export const addIntent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.userId;
@@ -128,7 +134,6 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
 
     const { targetIdentifier, type } = req.body as { targetIdentifier: string, type: AliasType };
 
-    // 1. Strict Input Validation
     const validTypes: AliasType[] = ['phone', 'telegram', 'instagram'];
     if (!type || !validTypes.includes(type)) {
       res.status(400).json({ error: "Invalid type. Must be 'phone', 'telegram', or 'instagram'." });
@@ -140,17 +145,10 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
       return;
     }
 
-    // 🚨 DATA NORMALIZATION: Clean formatting so matches aren't missed
     const standardizedTarget = normalizeIdentifier(type, targetIdentifier);
-
-    // Hash the standardized target
     const targetHash = hashIdentifier(type, standardizedTarget);
 
-    // ==========================================
-    // 🛡️ THE ATOMIC MATCH TRANSACTION
-    // ==========================================
     const result = await prisma.$transaction(async (tx) => {
-      // Step A: Lock and Fetch User A's current state
       const userA = await tx.user.findUnique({
         where: { id: userId },
         include: { 
@@ -159,45 +157,32 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
         }
       });
 
-      if (!userA || !userA.wallet) {
-        throw new Error('USER_STATE_INVALID');
-      }
+      if (!userA || !userA.wallet) throw new Error('USER_STATE_INVALID');
 
-      // Step B: Prevent Self-Targeting
       const isTargetingSelf = userA.aliases.some(alias => alias.hashed_value === targetHash);
-      if (isTargetingSelf) {
-        throw new Error('SELF_TARGETING');
-      }
+      if (isTargetingSelf) throw new Error('SELF_TARGETING');
 
-      // Step C: Prevent Duplicate Active Intents
       const existingIntent = await tx.intent.findFirst({
         where: { 
           user_id: userId, 
           target_hash: targetHash,
-          status: 'ACTIVE',               // Make sure we only check active ones
+          status: 'ACTIVE',               
           expires_at: { gt: new Date() } 
         }
       });
       
-      if (existingIntent) {
-        throw new Error('DUPLICATE_INTENT');
-      }
+      if (existingIntent) throw new Error('DUPLICATE_INTENT');
 
-      // Step D: Slot Deduction (Costs 1 Slot)
-      if (userA.wallet.slots_balance < 1) {
-        throw new Error('INSUFFICIENT_FUNDS');
-      }
+      if (userA.wallet.slots_balance < 1) throw new Error('INSUFFICIENT_FUNDS');
 
       await tx.wallet.update({
         where: { user_id: userId },
-        data: { slots_balance: { decrement: 1 } } // 👈 Unified column
+        data: { slots_balance: { decrement: 1 } }
       });
 
-      // Step E: Create Intent A with 30-Day Expiration
       const expirationDate = new Date();
       expirationDate.setDate(expirationDate.getDate() + 30); 
 
-      // 1. Encrypt the STANDARDIZED target so the dashboard shows clean data
       const encryptedTarget = encryptData(standardizedTarget);
 
       const intentA = await tx.intent.create({
@@ -211,7 +196,6 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
         }
       });
       
-      // Step F: Execute Double-Blind Match Logic
       let transactionMatchFound = false;
       let userAChatId: string | undefined = undefined;
       let userBChatId: string | undefined = undefined;
@@ -234,7 +218,6 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
           }
         });
 
-        // Ensure passesAgeFirewall is imported at the top of your file
         if (mutualIntent && passesAgeFirewall(userA.birth_date, userB.birth_date)) {
           const existingMatch = await tx.match.findFirst({
             where: {
@@ -247,12 +230,10 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
           });
 
           if (!existingMatch) {
-            // Create the Match
             await tx.match.create({
               data: { user_a_id: userA.id, user_b_id: userB.id, status: 'ACTIVE' }
             });
 
-            // Consume both intents out of the queue (Soft Delete via Revoke)
             await tx.intent.updateMany({
               where: { id: { in: [intentA.id, mutualIntent.id] } },
               data: { status: 'REVOKED' }
@@ -265,14 +246,9 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
         }
       }
 
-      // Return the secure snapshot of the transaction results
       return { matchFound: transactionMatchFound, userAChatId, userBChatId };
     }); 
-    // End Transaction Lock
 
-    // ==========================================
-    // 🔔 NOTIFICATION INTEGRATION
-    // ==========================================
     if (result.matchFound) {
       if (result.userAChatId && result.userBChatId) {
         triggerMatchNotification(result.userAChatId, result.userBChatId);
@@ -281,11 +257,9 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
       triggerCrushNotification(targetHash);
     }
 
-    // Respond safely, preventing identity leakage
     res.status(200).json({ success: true, matchFound: result.matchFound });
 
   } catch (error: any) {
-    // Gracefully catch and return specific UI errors
     if (error.message === 'USER_STATE_INVALID') {
       res.status(400).json({ error: 'User state is invalid.' });
     } else if (error.message === 'SELF_TARGETING') {
@@ -303,7 +277,6 @@ export const addIntent = async (req: AuthenticatedRequest, res: Response): Promi
 
 /**
  * GET /api/intent/dashboard
- * Compiles the user's secure reality: Wallets, clean Aliases, Counts, Expired Intents, and Unlocked Matches.
  */
 export const getDashboard = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -312,49 +285,62 @@ export const getDashboard = async (req: AuthenticatedRequest, res: Response): Pr
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-    const rawAliases = await prisma.alias.findMany({ where: { user_id: userId } });// Decrypt them before sending to the frontend!
-const decryptedAliases = rawAliases.map(alias => {
-  return {
-    id: alias.id,
-    type: alias.type,
-    verified: alias.verified,
-    created_at: alias.created_at,
-    // 🚨 If it has an encrypted value, unlock it! Otherwise, fall back to hidden.
-    value: alias.encrypted_value ? decryptData(alias.encrypted_value) : 'Hidden'
-  };
-});
 
+    const rawAliases = await prisma.alias.findMany({ where: { user_id: userId } });
+    
+    // 🛡️ USE SAFE DECRYPT: Aliases
+    const decryptedAliases = rawAliases.map(alias => {
+      return {
+        id: alias.id,
+        type: alias.type,
+        verified: alias.verified,
+        created_at: alias.created_at,
+        value: safeDecrypt(alias.encrypted_value, 'Hidden') // 👈 Safe
+      };
+    });
 
-const user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         wallet: true,
         aliases: { select: { id: true, type: true, verified: true, created_at: true } },
         _count: {
-          select: { intents: { where: { expires_at: { gt: new Date() }, status: 'ACTIVE' } } } // 👈 Added status filter
+          select: { intents: { where: { expires_at: { gt: new Date() }, status: 'ACTIVE' } } }
         },
-        matches_a: { where: { status: 'ACTIVE' }, include: { user_b: true } }, // 👈 Added status filter
-        matches_b: { where: { status: 'ACTIVE' }, include: { user_a: true } }  // 👈 Added status filter
+        matches_a: { where: { status: 'ACTIVE' }, include: { user_b: true } }, 
+        matches_b: { where: { status: 'ACTIVE' }, include: { user_a: true } }  
       }
     });
-    // 1. Fetch User Data (Now strictly counting only active intents)
 
     if (!user || !user.wallet) {
       res.status(404).json({ error: 'User data not found.' });
       return;
     }
 
-    // 🚨 2. THE TELEGRAM UPSELL LOGIC
-    // Check if they ALREADY have a verified Telegram alias. 
-    const hasActiveTelegram = decryptedAliases.some(a => a.type === 'telegram' && a.verified === true);
-    
+    // 🚨 TELEGRAM UPSELL LOGIC
     let inactiveHandle = null;
-    // 🚨 If they don't have an active alias, BUT we have their encrypted username from the User table...
-    if (!hasActiveTelegram && user.telegram_username_enc) { 
-      inactiveHandle = decryptData(user.telegram_username_enc); // 👈 Decrypt it and send to frontend!
+    
+    if (user.telegram_username_enc) {
+      const decryptedMainHandle = safeDecrypt(user.telegram_username_enc, 'None'); // 👈 Safe
+      
+      if (decryptedMainHandle !== 'None') {
+        const mainHandleAlreadyActive = decryptedAliases.some(
+          a => a.type === 'telegram' && a.value === decryptedMainHandle && a.verified === true
+        );
+        
+        if (!mainHandleAlreadyActive) {
+          inactiveHandle = decryptedMainHandle;
+        }
+      }
     }
 
-    // 2. Fetch EXPIRED Intents for the user
+    // 🕵️‍♂️ MASSIVE DEBUG LOGGER
+    console.log("\n=== 🕵️‍♂️ DASHBOARD PAYLOAD DEBUG ===");
+    console.log("1. Raw DB Encrypted Username: ", user.telegram_username_enc);
+    console.log("2. Decrypted Inactive Handle (Upsell): ", inactiveHandle);
+    console.log("3. Current Vault Aliases: ", JSON.stringify(decryptedAliases, null, 2));
+    console.log("====================================\n");
+
     const expiredIntents = await prisma.intent.findMany({
       where: {
         user_id: userId,
@@ -363,22 +349,21 @@ const user = await prisma.user.findUnique({
       select: { id: true, target_hash: true, expires_at: true }
     });
 
-    // 2.5 Fetch ACTIVE Intents for the user so they can see who they added
     const rawActiveIntents = await prisma.intent.findMany({
       where: {
         user_id: userId,
-        expires_at: { gt: new Date() }, // Only active ones
+        expires_at: { gt: new Date() }, 
         status: 'ACTIVE'
       },
-      select: { id: true, type: true, target_encrypted: true, created_at: true }, // Ensure target_encrypted exists in Prisma schema
+      select: { id: true, type: true, target_encrypted: true, created_at: true },
       orderBy: { created_at: 'desc' }
     });
 
-    // Decrypt the targets so the frontend can read them
+    // 🛡️ USE SAFE DECRYPT: Active Intents
     const activeIntents = rawActiveIntents.map(intent => ({
       id: intent.id,
       type: intent.type,
-      target: decryptData(intent.target_encrypted), // Decrypting it for the dashboard owner
+      target: safeDecrypt(intent.target_encrypted, 'Decryption Error'), // 👈 Safe
       created_at: intent.created_at
     }));
 
@@ -387,26 +372,26 @@ const user = await prisma.user.findUnique({
       include: { blocked: true }
     });
 
+    // 🛡️ USE SAFE DECRYPT: Blocked Connections
     const blockedConnections = blockedRecords.map(b => ({
       block_id: b.id,
       blocked_at: b.created_at,
       contact: {
-        phone: b.blocked.phone_encrypted ? decryptData(b.blocked.phone_encrypted) : 'Encrypted',
+        phone: safeDecrypt(b.blocked.phone_encrypted, 'Encrypted'), // 👈 Safe
         telegram_chat_id: b.blocked.telegram_chat_id
       }
     }));
 
-    // 3. Process Matches (Decrypt identities of matched users)
     const processedMatches = [];
     
+    // 🛡️ USE SAFE DECRYPT: Matches
     for (const match of user.matches_a) {
       processedMatches.push({
         match_id: match.id,
         matched_at: match.created_at,
         contact: {
           telegram_chat_id: match.user_b.telegram_chat_id,
-          // Make sure decryptData is imported at the top of your file!
-          phone: decryptData(match.user_b.phone_encrypted), 
+          phone: safeDecrypt(match.user_b.phone_encrypted, 'Unknown'), // 👈 Safe
           gender: match.user_b.gender
         }
       });
@@ -418,19 +403,18 @@ const user = await prisma.user.findUnique({
         matched_at: match.created_at,
         contact: {
           telegram_chat_id: match.user_a.telegram_chat_id,
-          phone: decryptData(match.user_a.phone_encrypted), 
+          phone: safeDecrypt(match.user_a.phone_encrypted, 'Unknown'), // 👈 Safe
           gender: match.user_a.gender
         }
       });
     }
 
-    // 4. Construct Safe Payload
     res.status(200).json({
       success: true,
       data: {
-        wallet: { slots: user.wallet.slots_balance }, // 👈 Just one number now
+        wallet: { slots: user.wallet.slots_balance },
         aliases: decryptedAliases,
-        inactive_telegram_handle: inactiveHandle, // 👈 Frontend catches this and shows the banner!
+        inactive_telegram_handle: inactiveHandle, 
         active_intents_count: user._count.intents,
         active_intents: activeIntents, 
         expired_intents: expiredIntents,

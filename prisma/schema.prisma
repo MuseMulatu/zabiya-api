@@ -30,6 +30,15 @@ model User {
   blocked_by    Block[] @relation("BlockedBy")
 }
 
+model TelebirrReceipt {
+  id             String   @id @default(uuid())
+  transaction_id String   @unique
+  amount         Float
+  sender_name    String?  // Optional, just for your own logging
+  status         String   @default("UNCLAIMED") // UNCLAIMED or CLAIMED
+  created_at     DateTime @default(now())
+}
+
 model Transaction {
   id           String   @id @default(uuid())
   user_id      String

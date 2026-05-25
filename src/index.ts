@@ -6,6 +6,8 @@ import paymentRoutes from './routes/payment';
 import intentRoutes from './routes/intent'; 
 import aliasRoutes from './routes/alias';
 import adminRoutes from './routes/admin';
+import nestJuniorRoutes from './routes/nest-junior';
+
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -45,6 +47,7 @@ app.use(express.json({
 })); 
 
 
+
 // 🚨 MACRODROID FIX: Allows Express to read the URL-encoded data from the phone
 app.use(express.urlencoded({ extended: true }));
 
@@ -54,6 +57,7 @@ app.use('/api/intent', intentRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/alias', aliasRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/nest-junior', nestJuniorRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 [System] Zabiya Engine securely running on port ${PORT}`);

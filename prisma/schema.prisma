@@ -142,3 +142,118 @@ model OtpRequest {
   expires_at DateTime
   created_at DateTime @default(now())
 }
+
+//Nest Junior Ride ***************************************
+
+// --- USERS & ROLES ---
+
+model User {
+  id            String   @id @default(uuid())
+  firebaseUid   String   @unique // Links to React Native auth().currentUser.uid
+  name          String
+  phone         String
+  role          Role     @default(PARENT) // PARENT, DRIVER, ADMIN
+  
+  // A parent can have multiple kids, and a kid can have multiple parents (Many-to-Many)
+  childrenLinks ParentStudent[]
+  
+  // If the user is a driver, link to their driver profile
+  driverProfile DriverProfile?
+  
+  createdAt     DateTime @default(now())
+}
+
+enum Role {
+  PARENT
+  DRIVER
+  ADMIN
+}
+
+// --- DRIVER POOL ---
+
+model DriverProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  
+  approvalStatus  ApprovalStatus @default(PENDING)
+  carModel        String?
+  plateNumber     String?
+  seats           Int      @default(4)
+  
+  // Drivers are assigned to specific daily routes
+  assignedRoutes  RouteSubscription[]
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+// --- STUDENTS & ROUTES ---
+
+model Student {
+  id            String   @id @default(uuid())
+  name          String
+  schoolName    String
+  photoUrl      String?
+  
+  parents       ParentStudent[]
+  subscriptions RouteSubscription[]
+}
+
+// Join table for Many-to-Many relationship
+model ParentStudent {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@id([userId, studentId])
+}
+
+// --- THE CORE BUSINESS LOGIC ---
+
+model RouteSubscription {
+  id              String   @id @default(uuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id])
+  
+  // Nullable until Admin assigns a driver from the pool
+  driverId        String?
+  driver          DriverProfile? @relation(fields: [driverId], references: [id])
+  
+  type            PlanType // PRIVATE or SHARED
+  
+  // Exact Coordinates
+  pickupLat       Float
+  pickupLng       Float
+  pickupAddress   String
+  dropoffLat      Float
+  dropoffLng      Float
+  dropoffAddress  String
+  
+  // Financials
+  paymentStatus   PaymentStatus @default(UNPAID)
+  monthlyFee      Float
+  
+  // --- THE LIVE STREAM LINK ---
+  // The programmatically created 100ms room. 
+  // Parent & Driver fetch this specific ID to connect.
+  hmsRoomId       String?  @unique 
+  
+  createdAt       DateTime @default(now())
+}
+
+enum PlanType {
+  PRIVATE
+  SHARED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING_VERIFICATION // Parent uploaded receipt
+  ACTIVE               // Admin verified payment
+  EXPIRED
+}

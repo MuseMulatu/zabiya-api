@@ -2,43 +2,36 @@ import TelegramBot from 'node-telegram-bot-api';
 
 const token = process.env.NEST_JUNIOR_BOT_TOKEN;
 
-export const nestBot = token ? new TelegramBot(token, { polling: true }) : null;
+// 1. Initialize WITHOUT polling
+export const nestBot = token ? new TelegramBot(token, { polling: false }) : null;
 
-// Map to store phone numbers linked to their active Telegram Chat ID
 export const phoneToChatIdStore = new Map<string, number>();
 
 if (nestBot) {
-    console.log('🤖 Nest Junior Telegram Bot is actively listening...');
+    console.log('🤖 Nest Junior Telegram Webhook Router Initialized.');
 
-    // Welcome message when they press start
+    // Welcome command handler
     nestBot.onText(/\/start/, (msg) => {
         const chatId = msg.chat.id;
-        
-        nestBot.sendMessage(chatId, "👋 Welcome to Nest Junior! To securely receive your login OTP, please share your phone number using the button below.", {
+        nestBot.sendMessage(chatId, "👋 Welcome to Nest Junior! Please share your phone number using the button below to receive your OTP.", {
             reply_markup: {
-                keyboard: [
-                    [{ text: "📱 Share Phone Number", request_contact: true }]
-                ],
+                keyboard: [[{ text: "📱 Share Phone Number", request_contact: true }]],
                 resize_keyboard: true,
                 one_time_keyboard: true
             }
         });
     });
 
-    // Capture the contact object when shared
+    // Contact sharing handler
     nestBot.on('contact', (msg) => {
         const chatId = msg.chat.id;
-        let rawPhone = msg.contact?.phone_number || '';
-        
-        // Clean phone format to standard digits (removing +, spaces etc.)
+        const rawPhone = msg.contact?.phone_number || '';
         const cleanPhone = rawPhone.replace(/\D/g, '');
-        // Normalize Ethiopian format from 2519... to standard local 09... if necessary
         const standardPhone = cleanPhone.startsWith('251') ? '0' + cleanPhone.slice(3) : cleanPhone;
 
-        // Save the verified mapping to memory
         phoneToChatIdStore.set(standardPhone, chatId);
 
-        nestBot.sendMessage(chatId, "✅ Phone number linked successfully! You can now return to the app and request your secure OTP code.", {
+        nestBot.sendMessage(chatId, "✅ Connected! Return to the app to request your OTP.", {
             reply_markup: { remove_keyboard: true }
         });
     });

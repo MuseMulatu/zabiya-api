@@ -7,7 +7,7 @@ import intentRoutes from './routes/intent';
 import aliasRoutes from './routes/alias';
 import adminRoutes from './routes/admin';
 import nestJuniorRoutes from './routes/nest-junior';
-
+import './lib/notifications/nestJuniorBot';
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;

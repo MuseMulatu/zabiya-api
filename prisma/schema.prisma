@@ -152,7 +152,7 @@ model NestUser {
   firebaseUid   String   @unique // Links to React Native auth().currentUser.uid
   name          String
   phone         String
-  role          Role     @default(PARENT) // PARENT, DRIVER, ADMIN
+  role          NestRole     @default(PARENT) // PARENT, DRIVER, ADMIN
   
   // A parent can have multiple kids, and a kid can have multiple parents (Many-to-Many)
   childrenLinks ParentStudent[]
@@ -174,7 +174,7 @@ enum NestRole {
 model DriverProfile {
   id              String   @id @default(uuid())
   nestUserId          String   @unique
-  user            NestUser     @relation(fields: [userId], references: [id])
+  user            NestUser     @relation(fields: [nestUserId], references: [id])
   
   approvalStatus  ApprovalStatus @default(PENDING)
   carModel        String?
@@ -206,11 +206,11 @@ model Student {
 // Join table for Many-to-Many relationship
 model ParentStudent {
   nestUserId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [nestUserId], references: [id])
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])
 
-  @@id([userId, studentId])
+  @@id([nestUserId, studentId])
 }
 
 // --- THE CORE BUSINESS LOGIC ---

@@ -243,6 +243,9 @@ model RouteSubscription {
   // Parent & Driver fetch this specific ID to connect.
   hmsRoomId       String?  @unique 
   
+  dailyLookInCount Int       @default(0)
+  lastLookInDate   DateTime?
+  
   createdAt       DateTime @default(now())
 }
 

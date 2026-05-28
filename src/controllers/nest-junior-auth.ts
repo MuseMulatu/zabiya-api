@@ -7,13 +7,15 @@ const otpStore = new Map<string, { code: string, expiry: number }>();
 export const checkUser = async (req: Request, res: Response) => {
     try {
         const { firebaseUid } = req.body;
-        const user = await prisma.user.findUnique({ where: { firebaseUid } });
+        // UPDATED: Now queries the isolated NestUser table
+        const user = await prisma.nestUser.findUnique({ where: { firebaseUid } });
         res.json({ exists: !!user, user });
     } catch (error) {
         console.error("Check user error:", error);
         res.status(500).json({ error: "Database error" });
     }
 };
+
 
 export const sendTelegramOtp = async (req: Request, res: Response) => {
     const { phone, name } = req.body;
@@ -35,27 +37,27 @@ export const sendTelegramOtp = async (req: Request, res: Response) => {
     }
 };
 
+
 export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) => {
     const { firebaseUid, name, phone, otp } = req.body;
 
-    // 1. Verify the OTP
     const stored = otpStore.get(phone);
     if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
         return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
     try {
-        // 2. Create the User in Prisma as a PARENT
-        const user = await prisma.user.create({
+        // UPDATED: Now creates the record in the isolated NestUser table
+        const user = await prisma.nestUser.create({
             data: {
                 firebaseUid,
                 name,
                 phone,
-                role: 'PARENT' // Explicitly setting the role based on your schema
+                role: 'PARENT' 
             }
         });
 
-        otpStore.delete(phone); // Clear the OTP
+        otpStore.delete(phone); 
         res.status(200).json({ success: true, user });
     } catch (error) {
         console.error("Registration error:", error);

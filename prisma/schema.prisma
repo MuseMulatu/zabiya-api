@@ -204,11 +204,14 @@ model Student {
 }
 
 // Join table for Many-to-Many relationship
+// --- NEST JUNIOR STUDENTS & ROUTES ---
 model ParentStudent {
-  nestUserId    String
-  user      User     @relation(fields: [nestUserId], references: [id])
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  nestUserId String
+  // FIX: Change 'User' to 'NestUser' on the line below
+  user       NestUser @relation(fields: [nestUserId], references: [id])
+  
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id])
 
   @@id([nestUserId, studentId])
 }

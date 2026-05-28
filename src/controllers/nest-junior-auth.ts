@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/db/prisma';
+import { nestBot, phoneToChatIdStore } from '../lib/notifications/nestJuniorBot';
+
 
 // Simple in-memory store for OTPs (For production, consider Redis)
 const otpStore = new Map<string, { code: string, expiry: number }>();
@@ -17,26 +19,40 @@ export const checkUser = async (req: Request, res: Response) => {
 };
 
 
+
 export const sendTelegramOtp = async (req: Request, res: Response) => {
     const { phone, name } = req.body;
     
-    // Generate a 6-digit OTP
+    // Clean user phone string input to match store format
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    // 1. Generate 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(phone, { code, expiry: Date.now() + 10 * 60 * 1000 }); // 10 min expiry
+    otpStore.set(cleanPhone, { code, expiry: Date.now() + 10 * 60 * 1000 }); 
 
     try {
-        // NOTE: In production, you must look up the user's Telegram chat_id 
-        // using their phone number from your database before sending the message.
-        // For now, we log it to the console so you can test the frontend flow!
-        console.log(`\n\n=== DEV LOG ===\nOTP for ${name} (${phone}) is: ${code}\n===============\n`);
+        // 2. Look up the secure chat ID mapping
+        const targetChatId = phoneToChatIdStore.get(cleanPhone);
+
+        if (!targetChatId || !nestBot) {
+            return res.status(404).json({ 
+                error: 'Telegram conversation not initialized. Please click the bot link and share your contact first.' 
+            });
+        }
+
+        // 3. Fire the live 100ms/NestJunior notification wire
+        await nestBot.sendMessage(
+            targetChatId, 
+            `Hello ${name || 'Parent'}, your Nest Junior verification code is: *${code}*.\n\nThis code will expire in 10 minutes.`,
+            { parse_mode: 'Markdown' }
+        );
         
-        res.status(200).json({ success: true, message: 'OTP Sent' });
+        res.status(200).json({ success: true, message: 'OTP Sent securely via Telegram' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to send OTP' });
+        console.error("Telegram Transmission Error:", error);
+        res.status(500).json({ error: 'Failed to transmit OTP via Telegram bot engine' });
     }
 };
-
 
 export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) => {
     const { firebaseUid, name, phone, otp } = req.body;

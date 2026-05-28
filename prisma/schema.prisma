@@ -147,7 +147,7 @@ model OtpRequest {
 
 // --- USERS & ROLES ---
 
-model User {
+model NestUser {
   id            String   @id @default(uuid())
   firebaseUid   String   @unique // Links to React Native auth().currentUser.uid
   name          String
@@ -163,7 +163,7 @@ model User {
   createdAt     DateTime @default(now())
 }
 
-enum Role {
+enum NestRole {
   PARENT
   DRIVER
   ADMIN
@@ -173,8 +173,8 @@ enum Role {
 
 model DriverProfile {
   id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id])
+  nestUserId          String   @unique
+  user            NestUser     @relation(fields: [userId], references: [id])
   
   approvalStatus  ApprovalStatus @default(PENDING)
   carModel        String?
@@ -205,7 +205,7 @@ model Student {
 
 // Join table for Many-to-Many relationship
 model ParentStudent {
-  userId    String
+  nestUserId    String
   user      User     @relation(fields: [userId], references: [id])
   studentId String
   student   Student  @relation(fields: [studentId], references: [id])

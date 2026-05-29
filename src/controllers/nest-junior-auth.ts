@@ -80,3 +80,67 @@ export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) 
         res.status(500).json({ error: 'Failed to register user' });
     }
 };
+
+// --- DRIVER SPECIFIC AUTH & ONBOARDING ---
+
+export const verifyDriverOtpAndRegister = async (req: Request, res: Response) => {
+    const { firebaseUid, name, phone, otp } = req.body;
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    const stored = otpStore.get(cleanPhone);
+    if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
+        return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    try {
+        // Create or find the User, explicitly enforcing the DRIVER role
+        let user = await prisma.nestUser.findUnique({ where: { firebaseUid } });
+        if (!user) {
+            user = await prisma.nestUser.create({
+                data: {
+                    firebaseUid,
+                    name,
+                    phone,
+                    role: 'DRIVER' 
+                }
+            });
+        }
+
+        otpStore.delete(cleanPhone); // Clear the OTP
+        res.status(200).json({ success: true, user });
+    } catch (error) {
+        console.error("Driver Registration error:", error);
+        res.status(500).json({ error: 'Failed to register driver' });
+    }
+};
+
+export const completeDriverProfile = async (req: Request, res: Response) => {
+    const { firebaseUid, carModel, plateNumber, seats } = req.body;
+
+    try {
+        const user = await prisma.nestUser.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'Driver user not found' });
+
+        // Upsert creates the profile if it doesn't exist, or updates it if it does
+        const profile = await prisma.driverProfile.upsert({
+            where: { nestUserId: user.id },
+            update: {
+                carModel,
+                plateNumber,
+                seats: parseInt(seats.toString(), 10)
+            },
+            create: {
+                nestUserId: user.id,
+                carModel,
+                plateNumber,
+                seats: parseInt(seats.toString(), 10),
+                approvalStatus: 'PENDING' // Defaults to pending for Admin approval
+            }
+        });
+
+        res.status(200).json({ success: true, profile });
+    } catch (error) {
+        console.error("Driver Profile Error:", error);
+        res.status(500).json({ error: 'Failed to update driver profile' });
+    }
+};

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { getHmsToken } from '../controllers/nest-junior';
-import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister } from '../controllers/nest-junior-auth';
 import { nestBot } from '../lib/notifications/nestJuniorBot';
+// Add the new imports at the top
+import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverOtpAndRegister, completeDriverProfile } from '../controllers/nest-junior-auth';
 
 const router = Router();
 
@@ -14,6 +15,8 @@ router.post('/auth/check-user', checkUser);
 router.post('/auth/send-telegram-otp', sendTelegramOtp);
 router.post('/auth/verify-telegram-otp-and-register', verifyTelegramOtpAndRegister);
 
+router.post('/auth/driver/verify-otp-and-register', verifyDriverOtpAndRegister);
+router.post('/auth/driver/complete-profile', completeDriverProfile);
 // --- TELEGRAM WEBHOOK ENDPOINT ---
 router.post('/auth/telegram-webhook', (req: Request, res: Response) => {
     if (nestBot) {

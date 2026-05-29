@@ -1,6 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { adminLogin, getAdminStats, getAllUsers, getUserDetails } from '../controllers/admin';
+import { 
+    getPendingDrivers, approveDriver, getApprovedDrivers, 
+    getUnassignedRoutes, assignDriverToRoute 
+} from '../controllers/nest-admin';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -24,5 +28,15 @@ router.post('/login', adminLogin);
 router.get('/dashboard', requireAdmin, getAdminStats);
 router.get('/users', requireAdmin, getAllUsers);
 router.get('/users/:id', requireAdmin, getUserDetails);
+
+// ... existing general admin routes ...
+
+// Mount Nest Junior Admin Routes
+router.get('/nest-junior/drivers/pending', getPendingDrivers);
+router.post('/nest-junior/drivers/:id/approve', approveDriver);
+router.get('/nest-junior/drivers/approved', getApprovedDrivers);
+
+router.get('/nest-junior/routes/unassigned', getUnassignedRoutes);
+router.post('/nest-junior/routes/:routeId/assign', assignDriverToRoute);
 
 export default router;

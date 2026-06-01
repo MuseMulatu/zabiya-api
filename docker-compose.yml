@@ -30,4 +30,4 @@ services:
       - NODE_ENV=production
 
 volumes:
-  local_pgdata
+  local_pgdata:

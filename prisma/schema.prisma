@@ -221,7 +221,7 @@ model ParentStudent {
 model RouteSubscription {
   id              String        @id @default(uuid())
   studentId       String
-  student         NestStudent   @relation(fields: [studentId], references: [id])
+  student         Student   @relation(fields: [studentId], references: [id])
   
   // Assigned Driver
   driverId        String?

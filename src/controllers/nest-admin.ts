@@ -16,14 +16,16 @@ export const getPendingDrivers = async (req: Request, res: Response) => {
     }
 };
 
+
 export const approveDriver = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        // Explicitly cast to string
+        const id = req.params.id as string; 
+        
         const driver = await prisma.driverProfile.update({
             where: { id },
             data: { approvalStatus: 'APPROVED' }
         });
-        res.json({ success: true, driver });
     } catch (error) {
         res.status(500).json({ error: 'Failed to approve driver' });
     }
@@ -59,15 +61,17 @@ export const getUnassignedRoutes = async (req: Request, res: Response) => {
     }
 };
 
+
 export const assignDriverToRoute = async (req: Request, res: Response) => {
     try {
-        const { routeId } = req.params;
-        const { driverId, monthlyFee } = req.body;
-
-        // Assign driver, set the price, generate a 100ms room ID, and set to UNPAID
+        // Explicitly cast to string
+        const routeId = req.params.routeId as string;
+        const driverId = req.body.driverId as string;
+        const monthlyFee = req.body.monthlyFee;
+        
         const route = await prisma.routeSubscription.update({
             where: { id: routeId },
-            data: {
+data: {
                 driverId,
                 monthlyFee: parseFloat(monthlyFee),
                 paymentStatus: 'UNPAID', // Parent now needs to pay this fee to activate

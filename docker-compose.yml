@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Your existing database block (if you are utilizing it)
   postgres-local:
     image: postgres:16-alpine
     restart: always
@@ -13,5 +14,20 @@ services:
     volumes:
       - local_pgdata:/var/lib/postgresql/data
 
+  # ADD THIS API BLOCK BELOW TO JOIN THE CHANNELS
+  api:
+    build: .
+    container_name: zabiya-backend-api-1
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+
 volumes:
-  local_pgdata:
+  local_pgdata

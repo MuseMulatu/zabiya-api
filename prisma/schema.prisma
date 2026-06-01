@@ -219,17 +219,18 @@ model ParentStudent {
 // --- THE CORE BUSINESS LOGIC ---
 
 model RouteSubscription {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   studentId       String
-  student         Student  @relation(fields: [studentId], references: [id])
+  student         NestStudent   @relation(fields: [studentId], references: [id])
   
-  // Nullable until Admin assigns a driver from the pool
+  // Assigned Driver
   driverId        String?
   driver          DriverProfile? @relation(fields: [driverId], references: [id])
   
-  type            PlanType // PRIVATE or SHARED
+  // Plan Details
+  type            String        // PRIVATE or SHARED
   
-  // Exact Coordinates
+  // Exact Coordinates (Required for Geofencing)
   pickupLat       Float
   pickupLng       Float
   pickupAddress   String
@@ -238,18 +239,19 @@ model RouteSubscription {
   dropoffAddress  String
   
   // Financials
-  paymentStatus   PaymentStatus @default(UNPAID)
-  monthlyFee      Float
+  paymentStatus   String        @default("UNPAID")
+  monthlyFee      Float?
+  
+  // --- DRIVER ROUTING STATE ---
+  sequenceOrder   Int           @default(0)     // Stop 1, Stop 2, etc.
+  isSkippedToday  Boolean       @default(false) // Toggled by parent to skip pickup
   
   // --- THE LIVE STREAM LINK ---
-  // The programmatically created 100ms room. 
-  // Parent & Driver fetch this specific ID to connect.
-  hmsRoomId       String?  @unique 
+  hmsRoomId       String?       @unique 
+  dailyLookInCount Int          @default(0)
+  lastLookInDate  DateTime?
   
-  dailyLookInCount Int       @default(0)
-  lastLookInDate   DateTime?
-  
-  createdAt       DateTime @default(now())
+  createdAt       DateTime      @default(now())
 }
 
 enum PlanType {

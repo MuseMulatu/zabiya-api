@@ -3,12 +3,15 @@ import { getHmsToken } from '../controllers/nest-junior';
 import { nestBot } from '../lib/notifications/nestJuniorBot';
 // Add the new imports at the top
 import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverOtpAndRegister, completeDriverProfile } from '../controllers/nest-junior-auth';
+import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest-driver';
 
 const router = Router();
 
 // --- 100ms LIVE STREAMING ROUTES ---
 // Endpoint: https://api.zabiya.com/api/nest-junior/hms-token
 router.get('/hms-token', getHmsToken);
+router.get('/driver/manifest', getActiveManifest);
+router.post('/driver/milestone', triggerBoardingMilestone);
 
 // --- AUTHENTICATION & OTP ROUTES ---
 router.post('/auth/check-user', checkUser);

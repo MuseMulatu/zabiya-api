@@ -20,39 +20,39 @@ export const checkUser = async (req: Request, res: Response) => {
 
 
 
-export const sendTelegramOtp = async (req: Request, res: Response) => {
-    const { phone, name } = req.body;
+// export const sendTelegramOtp = async (req: Request, res: Response) => {
+//     const { phone, name } = req.body;
     
-    // Clean user phone string input to match store format
-    const cleanPhone = phone.replace(/\D/g, '');
+//     // Clean user phone string input to match store format
+//     const cleanPhone = phone.replace(/\D/g, '');
 
-    // 1. Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(cleanPhone, { code, expiry: Date.now() + 10 * 60 * 1000 }); 
+//     // 1. Generate 6-digit OTP
+//     const code = Math.floor(100000 + Math.random() * 900000).toString();
+//     otpStore.set(cleanPhone, { code, expiry: Date.now() + 10 * 60 * 1000 }); 
 
-    try {
-        // 2. Look up the secure chat ID mapping
-        const targetChatId = phoneToChatIdStore.get(cleanPhone);
+//     try {
+//         // 2. Look up the secure chat ID mapping
+//         const targetChatId = phoneToChatIdStore.get(cleanPhone);
 
-        if (!targetChatId || !nestBot) {
-            return res.status(404).json({ 
-                error: 'Telegram conversation not initialized. Please click the bot link and share your contact first.' 
-            });
-        }
+//         if (!targetChatId || !nestBot) {
+//             return res.status(404).json({ 
+//                 error: 'Telegram conversation not initialized. Please click the bot link and share your contact first.' 
+//             });
+//         }
 
-        // 3. Fire the live 100ms/NestJunior notification wire
-        await nestBot.sendMessage(
-            targetChatId, 
-            `Hello ${name || 'Parent'}, your Nest Junior verification code is: *${code}*.\n\nThis code will expire in 10 minutes.`,
-            { parse_mode: 'Markdown' }
-        );
+//         // 3. Fire the live 100ms/NestJunior notification wire
+//         await nestBot.sendMessage(
+//             targetChatId, 
+//             `Hello ${name || 'Parent'}, your Nest Junior verification code is: *${code}*.\n\nThis code will expire in 10 minutes.`,
+//             { parse_mode: 'Markdown' }
+//         );
         
-        res.status(200).json({ success: true, message: 'OTP Sent securely via Telegram' });
-    } catch (error) {
-        console.error("Telegram Transmission Error:", error);
-        res.status(500).json({ error: 'Failed to transmit OTP via Telegram bot engine' });
-    }
-};
+//         res.status(200).json({ success: true, message: 'OTP Sent securely via Telegram' });
+//     } catch (error) {
+//         console.error("Telegram Transmission Error:", error);
+//         res.status(500).json({ error: 'Failed to transmit OTP via Telegram bot engine' });
+//     }
+// };
 
 // --- DRIVER SPECIFIC AUTH & ONBOARDING ---
 
@@ -154,5 +154,34 @@ export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) 
     } catch (error) {
         console.error("Registration error:", error);
         res.status(500).json({ error: 'Failed to register user' });
+    }
+};
+
+
+export const sendTelegramOtp = async (req: Request, res: Response) => {
+    try {
+        let { phone, name } = req.body;
+
+        // Normalization fallback just in case the frontend sends +251
+        if (phone.startsWith('+251')) phone = '0' + phone.slice(4);
+
+        // 1. Generate a 6-digit OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // 2. Stage OTP in Database (Expires in 10 mins)
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
+        await prisma.otpRequest.upsert({
+            where: { phone },
+            update: { otp_code: otpCode, expires_at: expiresAt },
+            create: { phone, otp_code: otpCode, expires_at: expiresAt }
+        });
+
+        // 3. We respond instantly. We DO NOT message the bot here. 
+        // We wait for the user to open the bot and share their contact.
+        res.json({ success: true, message: 'OTP Staged. Waiting for Webhook verification.' });
+
+    } catch (error) {
+        console.error('OTP Staging Error:', error);
+        res.status(500).json({ error: 'Failed to stage OTP' });
     }
 };

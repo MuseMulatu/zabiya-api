@@ -5,6 +5,9 @@ import { requestRide, submitReceipt } from '../controllers/nest-junior';
 // Add the new imports at the top
 import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverOtpAndRegister, completeDriverProfile } from '../controllers/nest-junior-auth';
 import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest-driver';
+// Add this import at the top
+import { handleNestJuniorWebhook } from '../lib/notifications/nestJuniorBot';
+
 
 const router = Router();
 
@@ -28,6 +31,9 @@ router.get('/token', getHmsToken);
 router.post('/routes/request', requestRide);
 router.post('/routes/receipt', submitReceipt); // Using req.body.routeId
 // --- TELEGRAM WEBHOOK ENDPOINT ---
+// Add this route near your other routes
+router.post('/webhook', handleNestJuniorWebhook);
+
 router.post('/auth/telegram-webhook', (req: Request, res: Response) => {
     if (nestBot) {
         // Feed the incoming body directly into the library's processing engine

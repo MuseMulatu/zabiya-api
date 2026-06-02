@@ -3,36 +3,42 @@ import { prisma } from '../db/prisma';
 
 const token = process.env.NEST_JUNIOR_TELEGRAM_BOT_TOKEN || '';
 
-// 1. NO POLLING! Strict Webhook mode.
 export const nestBot = new TelegramBot(token, { polling: false });
 
 export const initNestJuniorBot = async () => {
-    if (!token) return console.warn("⚠️ Telegram token missing!");
-
-    // 2. Point Telegram to your Express Webhook Route
-    const webhookUrl = `${process.env.PUBLIC_URL || 'https://api.zabiya.com'}/api/nest-junior/webhook`;
-    await nestBot.setWebHook(webhookUrl);
-    
-    console.log(`🤖 Nest Junior Webhook locked onto ${webhookUrl}`);
+    try {
+        if (!token) return console.warn("⚠️ Telegram token missing!");
+        const webhookUrl = `${process.env.PUBLIC_URL || 'https://api.zabiya.com'}/api/nest-junior/webhook`;
+        
+        await nestBot.setWebHook(webhookUrl);
+        console.log(`🤖 Nest Junior Webhook successfully locked onto ${webhookUrl}`);
+    } catch (error) {
+        console.error("❌ Fatal Error Setting Telegram Webhook:", error);
+    }
 };
 
-// 3. The Interception Logic
 export const handleNestJuniorWebhook = async (req: any, res: any) => {
-    // 🚨 MASSIVE TRIPWIRE LOG 🚨
+    // 🚨 Log immediately before doing anything else
+    console.log("👉 Nest Junior Webhook Hit!");
+
     console.log("=========================================");
     console.log("🚨 TELEGRAM WEBHOOK HIT!");
     console.log("Headers:", req.headers);
     console.log("Body:", JSON.stringify(req.body, null, 2));
     console.log("=========================================");
-    res.sendStatus(200); // Instantly tell Telegram we received it
     
-    const message = req.body.message;
+    // Instantly respond to Telegram so they don't timeout and throw 502s
+    res.sendStatus(200); 
+    
+    // Use optional chaining (?) to prevent fatal server crashes
+    const message = req.body?.message; 
     if (!message) return;
 
-    const chatId = message.chat.id.toString();
+    const chatId = message.chat?.id?.toString();
+    if (!chatId) return;
 
     try {
-        // --- PHASE A: THE DEEP LINK (/start driver or /start parent) ---
+        // ... (Keep the rest of your PHASE A and PHASE B code exactly the same below this line)
         if (message.text && message.text.startsWith('/start')) {
             const rolePayload = message.text.split(' ')[1]; // Extracts 'driver' or 'parent'
             

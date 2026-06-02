@@ -8,8 +8,17 @@ import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest
 // Add this import at the top
 import { handleNestJuniorWebhook } from '../lib/notifications/nestJuniorBot';
 
+import express from 'express';
 
-const router = Router();
+const router = express.Router();
+
+// 1. The POST route for Telegram
+router.post('/webhook', handleNestJuniorWebhook);
+
+// 2. ADD THIS: The GET route for your Browser
+router.get('/webhook', (req, res) => {
+    res.status(200).json({ status: "🟢 Nest Junior Webhook Router is LIVE and reachable!" });
+});
 
 // --- 100ms LIVE STREAMING ROUTES ---
 // Endpoint: https://api.zabiya.com/api/nest-junior/hms-token

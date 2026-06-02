@@ -8,7 +8,8 @@ export const getActiveManifest = async (req: Request, res: Response) => {
     try {
         const manifest = await prisma.routeSubscription.findMany({
             where: { 
-                driverId: driverId as String,
+                // Changed 'String' to 'string' here 👇
+                driverId: driverId as string,
             },
             orderBy: { sequenceOrder: 'asc' },
             include: {

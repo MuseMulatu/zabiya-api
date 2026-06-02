@@ -18,6 +18,12 @@ export const initNestJuniorBot = async () => {
 
 // 3. The Interception Logic
 export const handleNestJuniorWebhook = async (req: any, res: any) => {
+    // 🚨 MASSIVE TRIPWIRE LOG 🚨
+    console.log("=========================================");
+    console.log("🚨 TELEGRAM WEBHOOK HIT!");
+    console.log("Headers:", req.headers);
+    console.log("Body:", JSON.stringify(req.body, null, 2));
+    console.log("=========================================");
     res.sendStatus(200); // Instantly tell Telegram we received it
     
     const message = req.body.message;

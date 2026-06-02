@@ -153,6 +153,7 @@ model NestUser {
   name          String
   phone         String
   role          NestRole     @default(PARENT) // PARENT, DRIVER, ADMIN
+  expoPushToken String?
   
   // A parent can have multiple kids, and a kid can have multiple parents (Many-to-Many)
   childrenLinks ParentStudent[]
@@ -241,6 +242,7 @@ model RouteSubscription {
   // Financials
   paymentStatus   String        @default("UNPAID")
   monthlyFee      Float?
+  receiptUrl      String?
   
   // --- DRIVER ROUTING STATE ---
   sequenceOrder   Int           @default(0)     // Stop 1, Stop 2, etc.

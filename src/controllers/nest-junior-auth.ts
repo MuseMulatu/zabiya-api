@@ -54,37 +54,11 @@ export const sendTelegramOtp = async (req: Request, res: Response) => {
     }
 };
 
-export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) => {
-    const { firebaseUid, name, phone, otp } = req.body;
-
-    const stored = otpStore.get(phone);
-    if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
-        return res.status(400).json({ error: 'Invalid or expired OTP' });
-    }
-
-    try {
-        // UPDATED: Now creates the record in the isolated NestUser table
-        const user = await prisma.nestUser.create({
-            data: {
-                firebaseUid,
-                name,
-                phone,
-                role: 'PARENT' 
-            }
-        });
-
-        otpStore.delete(phone); 
-        res.status(200).json({ success: true, user });
-    } catch (error) {
-        console.error("Registration error:", error);
-        res.status(500).json({ error: 'Failed to register user' });
-    }
-};
-
 // --- DRIVER SPECIFIC AUTH & ONBOARDING ---
 
 export const verifyDriverOtpAndRegister = async (req: Request, res: Response) => {
-    const { firebaseUid, name, phone, otp } = req.body;
+    // 1. Add expoPushToken to the extracted fields
+    const { firebaseUid, name, phone, otp, expoPushToken } = req.body; 
     const cleanPhone = phone.replace(/\D/g, '');
 
     const stored = otpStore.get(cleanPhone);
@@ -93,18 +67,20 @@ export const verifyDriverOtpAndRegister = async (req: Request, res: Response) =>
     }
 
     try {
-        // Create or find the User, explicitly enforcing the DRIVER role
-        let user = await prisma.nestUser.findUnique({ where: { firebaseUid } });
-        if (!user) {
-            user = await prisma.nestUser.create({
-                data: {
-                    firebaseUid,
-                    name,
-                    phone,
-                    role: 'DRIVER' 
-                }
-            });
-        }
+        // 2. Use 'upsert' to gracefully handle both New Registration and Re-Logins
+        const user = await prisma.nestUser.upsert({
+            where: { firebaseUid },
+            update: {
+                expoPushToken // If the user already exists, update their token to the new device's token
+            },
+            create: {
+                firebaseUid,
+                name,
+                phone,
+                role: 'DRIVER', 
+                expoPushToken // Save the token on their first registration
+            }
+        });
 
         otpStore.delete(cleanPhone); // Clear the OTP
         res.status(200).json({ success: true, user });
@@ -142,5 +118,41 @@ export const completeDriverProfile = async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Driver Profile Error:", error);
         res.status(500).json({ error: 'Failed to update driver profile' });
+    }
+};
+
+export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) => {
+    // 1. Extract expoPushToken from the request body
+    const { firebaseUid, name, phone, otp, expoPushToken } = req.body;
+
+    // Clean the phone number to accurately match the key stored in sendTelegramOtp
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    const stored = otpStore.get(cleanPhone);
+    if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
+        return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    try {
+        // 2. Use 'upsert' to gracefully handle both New Registration and Re-Logins for Parents
+        const user = await prisma.nestUser.upsert({
+            where: { firebaseUid },
+            update: {
+                expoPushToken // If the parent already exists, update to their current device's token
+            },
+            create: {
+                firebaseUid,
+                name,
+                phone,
+                role: 'PARENT', 
+                expoPushToken // Save the token on their very first registration
+            }
+        });
+
+        otpStore.delete(cleanPhone); 
+        res.status(200).json({ success: true, user });
+    } catch (error) {
+        console.error("Registration error:", error);
+        res.status(500).json({ error: 'Failed to register user' });
     }
 };

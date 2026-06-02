@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { prisma } from '../lib/db/prisma'; // ✅ ADD THIS INSTEAD
 
 const HMS_ACCESS_KEY = process.env.HMS_ACCESS_KEY || '';
 const HMS_SECRET = process.env.HMS_SECRET || '';
 
-const prisma = new PrismaClient();
+// Now the rest of your functions (requestLookIn, getHmsToken, requestRide, etc.) 
+// will perfectly use this shared `prisma` instance!
 
 export const requestLookIn = async (req: Request, res: Response) => {
     try {
@@ -92,5 +93,69 @@ export const getHmsToken = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error generating HMS token:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+};
+
+// 1. Parent requests a new ride
+export const requestRide = async (req: Request, res: Response) => {
+    try {
+        const { 
+            firebaseUid, studentName, schoolName, type, // 'PRIVATE' or 'SHARED'
+            pickupLat, pickupLng, pickupAddress, 
+            dropoffLat, dropoffLng, dropoffAddress 
+        } = req.body;
+
+        const user = await prisma.nestUser.findUnique({ where: { firebaseUid } });
+        if (!user) return res.status(404).json({ error: 'Parent not found' });
+
+        // Create Student, link to Parent, and create the UNPAID Route in one transaction
+        const result = await prisma.$transaction(async (tx) => {
+            const student = await tx.student.create({
+                data: {
+                    name: studentName,
+                    schoolName: schoolName,
+                    parents: {
+                        create: { nestUserId: user.id }
+                    }
+                }
+            });
+
+            const route = await tx.routeSubscription.create({
+                data: {
+                    studentId: student.id,
+                    type,
+                    pickupLat, pickupLng, pickupAddress,
+                    dropoffLat, dropoffLng, dropoffAddress,
+                    paymentStatus: 'UNPAID',
+                    // driverId and monthlyFee are intentionally left null here for the Admin to fill later
+                }
+            });
+            return route;
+        });
+
+        res.status(201).json({ success: true, route: result });
+    } catch (error) {
+        console.error('Request Ride Error:', error);
+        res.status(500).json({ error: 'Failed to request ride' });
+    }
+};
+
+// 2. Parent uploads their Telebirr/Bank receipt
+export const submitReceipt = async (req: Request, res: Response) => {
+    try {
+        const { routeId, receiptUrl } = req.body;
+
+        const route = await prisma.routeSubscription.update({
+            where: { id: routeId },
+            data: {
+                receiptUrl,
+                paymentStatus: 'PENDING_VERIFICATION' // Moves to Admin Payment Queue
+            }
+        });
+
+        res.json({ success: true, route });
+    } catch (error) {
+        console.error('Submit Receipt Error:', error);
+        res.status(500).json({ error: 'Failed to submit receipt' });
     }
 };

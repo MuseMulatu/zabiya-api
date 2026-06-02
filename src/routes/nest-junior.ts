@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { getHmsToken } from '../controllers/nest-junior';
+import { getHmsToken, requestLookIn } from '../controllers/nest-junior';
 import { nestBot } from '../lib/notifications/nestJuniorBot';
+import { requestRide, submitReceipt } from '../controllers/nest-junior';
 // Add the new imports at the top
 import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverOtpAndRegister, completeDriverProfile } from '../controllers/nest-junior-auth';
 import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest-driver';
@@ -20,6 +21,12 @@ router.post('/auth/verify-telegram-otp-and-register', verifyTelegramOtpAndRegist
 
 router.post('/auth/driver/verify-otp-and-register', verifyDriverOtpAndRegister);
 router.post('/auth/driver/complete-profile', completeDriverProfile);
+// Existing
+router.post('/look-in', requestLookIn);
+router.get('/token', getHmsToken);
+// New Parent Endpoints
+router.post('/routes/request', requestRide);
+router.post('/routes/receipt', submitReceipt); // Using req.body.routeId
 // --- TELEGRAM WEBHOOK ENDPOINT ---
 router.post('/auth/telegram-webhook', (req: Request, res: Response) => {
     if (nestBot) {

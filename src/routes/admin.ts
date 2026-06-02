@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { adminLogin, getAdminStats, getAllUsers, getUserDetails } from '../controllers/admin';
 import { 
     getPendingDrivers, approveDriver, getApprovedDrivers, 
-    getUnassignedRoutes, assignDriverToRoute 
+    getUnassignedRoutes, assignDriverToRoute, getPendingPayments, activateRoute  
 } from '../controllers/nest-admin';
 
 const router = Router();
@@ -38,5 +38,18 @@ router.get('/nest-junior/drivers/approved', getApprovedDrivers);
 
 router.get('/nest-junior/routes/unassigned', getUnassignedRoutes);
 router.post('/nest-junior/routes/:routeId/assign', assignDriverToRoute);
+
+// NEST JUNIOR ADMIN ROUTES
+router.get('/nest/drivers/pending', getPendingDrivers);
+router.post('/nest/drivers/:id/approve', approveDriver);
+router.get('/nest/drivers/approved', getApprovedDrivers);
+
+router.get('/nest/routes/unassigned', getUnassignedRoutes);
+router.post('/nest/routes/:routeId/assign', assignDriverToRoute); // The "Quote & Assign" step
+
+// NEW: Payment & Activation Routes
+router.get('/nest/routes/pending-payment', getPendingPayments);
+router.post('/nest/routes/:routeId/activate', activateRoute); // The "Activate & Livestream" step
+
 
 export default router;

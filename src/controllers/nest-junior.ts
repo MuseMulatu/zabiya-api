@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
 
@@ -72,15 +72,14 @@ export const getHmsToken = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Missing roomId, role, or userId' });
         }
 
-        // 100ms requires this specific payload structure
         const payload = {
             access_key: HMS_ACCESS_KEY,
             room_id: roomId,
             user_id: userId,
-            role: role, // Example: 'viewer' (for parents) or 'broadcaster' (for drivers)
+            role: role, 
             type: 'app',
             version: 2,
-            jti: uuidv4(), // Unique token ID
+            jti: crypto.randomUUID(), // <--- CHANGED THIS LINE
         };
 
         // Sign the token using your 100ms Secret

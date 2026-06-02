@@ -28,6 +28,17 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+    # ADD THESE LINES TO CONNECT TO THE PROXY NETWORK
+    networks:
+      - default
+      - shared_proxy_network
 
 volumes:
   local_pgdata:
+
+# ADD THIS ENTIRE BLOCK TO THE BOTTOM OF YOUR COMPOSE FILE
+networks:
+  default:
+  shared_proxy_network:
+    external: true
+    name: zabiya-backend_default

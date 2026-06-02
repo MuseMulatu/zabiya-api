@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
-import { v4 as uuidv4 } from 'uuid';
+// 1. REPLACED uuid IMPORT WITH NATIVE crypto
+import crypto from 'crypto'; 
 import axios from 'axios';
 
 const HMS_ACCESS_KEY = process.env.HMS_ACCESS_KEY || '';
@@ -11,7 +12,8 @@ const getManagementToken = () => {
         access_key: HMS_ACCESS_KEY,
         type: 'management',
         version: 2,
-        jti: uuidv4(),
+        // 2. REPLACED uuidv4() WITH crypto.randomUUID()
+        jti: crypto.randomUUID(),
         iat: Math.floor(Date.now() / 1000),
         nbf: Math.floor(Date.now() / 1000)
     };

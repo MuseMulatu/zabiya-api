@@ -7,6 +7,7 @@ import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverO
 import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest-driver';
 // Add this import at the top
 import { handleNestJuniorWebhook } from '../lib/notifications/nestJuniorBot';
+import { getDriverManifest } from '../controllers/nest-driver';
 
 import express from 'express';
 
@@ -42,6 +43,9 @@ router.post('/routes/receipt', submitReceipt); // Using req.body.routeId
 // --- TELEGRAM WEBHOOK ENDPOINT ---
 // Add this route near your other routes
 router.post('/webhook', handleNestJuniorWebhook);
+
+// The Manifest Endpoint
+router.get('/driver/manifest', getDriverManifest);
 
 router.post('/auth/telegram-webhook', (req: Request, res: Response) => {
     if (nestBot) {

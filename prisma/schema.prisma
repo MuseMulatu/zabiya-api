@@ -218,6 +218,17 @@ model ParentStudent {
 }
 
 // --- THE CORE BUSINESS LOGIC ---
+model RouteMilestone {
+  id                  String            @id @default(uuid())
+  routeSubscriptionId String
+  routeSubscription   RouteSubscription @relation(fields: [routeSubscriptionId], references: [id], onDelete: Cascade)
+  
+  type                String            // "PERIODIC" or "BOARDING"
+  photoUrl            String
+  createdAt           DateTime          @default(now())
+
+  @@index([routeSubscriptionId])
+}
 
 model RouteSubscription {
   id              String        @id @default(uuid())
@@ -254,6 +265,25 @@ model RouteSubscription {
   lastLookInDate  DateTime?
   
   createdAt       DateTime      @default(now())
+  milestones      RouteMilestone[] // Add this relation line
+  // Fast flat fields for the live parent view
+  currentLat       Float?
+  currentLng       Float?
+  lastLocationTime DateTime?
+
+  locationLogs     VehicleLocationLog[] // Relation field
+}
+
+model VehicleLocationLog {
+  id                  String            @id @default(uuid())
+  routeSubscriptionId String
+  routeSubscription   RouteSubscription @relation(fields: [routeSubscriptionId], references: [id], onDelete: Cascade)
+  
+  latitude            Float
+  longitude           Float
+  createdAt           DateTime          @default(now())
+
+  @@index([routeSubscriptionId, createdAt]) // Optimized for quick path reconstruction queries
 }
 
 enum PlanType {

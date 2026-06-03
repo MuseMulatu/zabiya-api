@@ -1,8 +1,8 @@
 import express, { Request, Response } from 'express';
 import { getHmsToken, requestLookIn, requestRide, submitReceipt } from '../controllers/nest-junior';
 import { checkUser, sendTelegramOtp, verifyTelegramOtpAndRegister, verifyDriverOtpAndRegister, completeDriverProfile } from '../controllers/nest-junior-auth';
-import { getDriverManifest, triggerBoardingMilestone } from '../controllers/nest-driver';
 import { handleNestJuniorWebhook, nestBot } from '../lib/notifications/nestJuniorBot';
+import { getDriverManifest, triggerBoardingMilestone, updateTelemetry, getLiveRouteData, getRouteHistory } from '../controllers/nest-driver';
 
 const router = express.Router();
 
@@ -28,6 +28,11 @@ router.post('/auth/send-telegram-otp', sendTelegramOtp);
 router.post('/auth/verify-telegram-otp-and-register', verifyTelegramOtpAndRegister);
 router.post('/auth/driver/verify-otp-and-register', verifyDriverOtpAndRegister);
 router.post('/auth/driver/complete-profile', completeDriverProfile);
+router.post('/driver/telemetry', updateTelemetry);
+
+// ... Add this new parent route block
+router.get('/routes/:routeId/live-coords', getLiveRouteData);
+router.get('/routes/:routeId/history', getRouteHistory);
 
 // --- 100ms LIVE STREAMING ROUTES ---
 router.get('/hms-token', getHmsToken);

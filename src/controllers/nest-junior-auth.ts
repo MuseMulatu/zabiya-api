@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/db/prisma';
 //import { nestBot, phoneToChatIdStore } from '../lib/notifications/nestJuniorBot';
-
+import { normalizePhoneNumber } from '../lib/security/normalization';
 
 // Simple in-memory store for OTPs (For production, consider Redis)
 const otpStore = new Map<string, { code: string, expiry: number }>();
@@ -120,43 +120,43 @@ export const completeDriverProfile = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to update driver profile' });
     }
 };
-
 export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) => {
-    // 1. Extract expoPushToken from the request body
     const { firebaseUid, name, phone, otp, expoPushToken } = req.body;
 
-    // Clean the phone number to accurately match the key stored in sendTelegramOtp
-    const cleanPhone = phone.replace(/\D/g, '');
+    // Normalize the phone number
+    const safePhone = normalizePhoneNumber(phone);
 
-    const stored = otpStore.get(cleanPhone);
-    if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
+    // Query Prisma, NOT the in-memory map
+    const stored = await prisma.otpRequest.findUnique({
+        where: { phone: safePhone }
+    });
+
+    if (!stored || stored.otp_code !== otp || new Date() > stored.expires_at) {
         return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
     try {
-        // 2. Use 'upsert' to gracefully handle both New Registration and Re-Logins for Parents
         const user = await prisma.nestUser.upsert({
             where: { firebaseUid },
-            update: {
-                expoPushToken // If the parent already exists, update to their current device's token
-            },
+            update: { expoPushToken },
             create: {
                 firebaseUid,
                 name,
-                phone,
+                phone: safePhone, // Save the clean number to the user profile
                 role: 'PARENT', 
-                expoPushToken // Save the token on their very first registration
+                expoPushToken 
             }
         });
 
-        otpStore.delete(cleanPhone); 
+        // Delete the OTP from the database so it can't be reused
+        await prisma.otpRequest.delete({ where: { phone: safePhone } }); 
+        
         res.status(200).json({ success: true, user });
     } catch (error) {
         console.error("Registration error:", error);
         res.status(500).json({ error: 'Failed to register user' });
     }
 };
-
 
 export const sendTelegramOtp = async (req: Request, res: Response) => {
     try {

@@ -55,3 +55,17 @@ export const formatArifpayPhone = (phone: string): string => {
 
   return cleaned;
 };
+
+export const normalizePhoneNumber = (phone: string | undefined): string => {
+  if (!phone) return '';
+  
+  // Strip everything except digits (removes '+', spaces, dashes, etc.)
+  let cleaned = phone.replace(/\D/g, '');
+
+  // If the user entered a local number starting with '0' (e.g., 0934...), convert it to '2519...'
+  if (cleaned.startsWith('0')) {
+    cleaned = '251' + cleaned.substring(1);
+  }
+
+  return cleaned;
+};

@@ -1,5 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { prisma } from '../db/prisma';
+// Import the normalizer at the top of the file
+import { normalizePhoneNumber } from '../security/normalization';
 
 const token = process.env.NEST_JUNIOR_TELEGRAM_BOT_TOKEN || '';
 
@@ -16,8 +18,8 @@ export const initNestJuniorBot = async () => {
         console.error("❌ Fatal Error Setting Telegram Webhook:", error);
     }
 };
-
 export const handleNestJuniorWebhook = async (req: any, res: any) => {
+
     // 🚨 Log immediately before doing anything else
     console.log("👉 Nest Junior Webhook Hit!");
 
@@ -38,7 +40,7 @@ export const handleNestJuniorWebhook = async (req: any, res: any) => {
     if (!chatId) return;
 
     try {
-        // ... (Keep the rest of your PHASE A and PHASE B code exactly the same below this line)
+        // --- PHASE A: THE /START COMMAND ---
         if (message.text && message.text.startsWith('/start')) {
             const rolePayload = message.text.split(' ')[1]; // Extracts 'driver' or 'parent'
             
@@ -53,19 +55,21 @@ export const handleNestJuniorWebhook = async (req: any, res: any) => {
                     one_time_keyboard: true
                 }
             });
-            return;
+            return; // 🚨 Stop here so the server doesn't crash trying to read a contact card
         }
 
         // --- PHASE B: THE CONTACT SHARE & OTP DELIVERY ---
         if (message.contact) {
-            // Telegram usually sends "251911..." or "+251911...". We normalize it to "0911..." to match your DB.
-            let phone = message.contact.phone_number.replace(/\D/g, ''); 
-            if (phone.startsWith('251')) {
-                phone = '0' + phone.substring(3);
-            }
+            // 1. Grab the raw phone number from Telegram
+            const rawPhoneNumber = message.contact.phone_number;
+            
+            // 2. Normalize it so it perfectly matches the database (e.g., "251934963090")
+            const safePhone = normalizePhoneNumber(rawPhoneNumber);
 
-            // Look up the OTP staged by the frontend
-            const pendingOtp = await prisma.otpRequest.findUnique({ where: { phone } });
+            // 3. Look up the OTP staged by the mobile app using the clean number
+            const pendingOtp = await prisma.otpRequest.findUnique({ 
+                where: { phone: safePhone } 
+            });
 
             if (!pendingOtp) {
                 await nestBot.sendMessage(chatId, "⚠️ We couldn't find a pending request for this number. Please open the app and click 'Request OTP' first.", {
@@ -74,7 +78,7 @@ export const handleNestJuniorWebhook = async (req: any, res: any) => {
                 return;
             }
 
-            // Deliver the Payload with tap-to-copy backticks!
+            // 4. Deliver the Payload with tap-to-copy backticks!
             await nestBot.sendMessage(chatId, `🔒 Your Nest Junior Auth Code is:\n\n\`${pendingOtp.otp_code}\`\n\nTap the code to copy it, then paste it back into the app.`, {
                 parse_mode: 'Markdown',
                 reply_markup: { remove_keyboard: true } // Remove the contact button

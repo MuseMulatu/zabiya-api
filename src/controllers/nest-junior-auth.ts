@@ -55,34 +55,72 @@ export const checkUser = async (req: Request, res: Response) => {
 // };
 
 // --- DRIVER SPECIFIC AUTH & ONBOARDING ---
+export const sendTelegramOtp = async (req: Request, res: Response) => {
+    try {
+        console.log("\n--- [MOBILE APP] REQUESTING OTP ---");
+        const { phone, name } = req.body;
+        console.log(`1. Raw Phone from App: "${phone}"`);
+
+        const safePhone = normalizePhoneNumber(phone);
+        console.log(`2. Normalized Phone (Saving to DB): "${safePhone}"`);
+
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
+
+        await prisma.otpRequest.upsert({
+            where: { phone: safePhone },
+            update: { otp_code: otpCode, expires_at: expiresAt },
+            create: { phone: safePhone, otp_code: otpCode, expires_at: expiresAt }
+        });
+
+        console.log(`3. SUCCESS! Staged OTP [${otpCode}] for [${safePhone}]`);
+        res.json({ success: true, message: 'OTP Staged. Waiting for Webhook.' });
+    } catch (error) {
+        console.error('OTP Staging Error:', error);
+        res.status(500).json({ error: 'Failed to stage OTP' });
+    }
+};
 
 export const verifyDriverOtpAndRegister = async (req: Request, res: Response) => {
-    // 1. Add expoPushToken to the extracted fields
+    console.log("\n--- [MOBILE APP] VERIFYING OTP ---");
     const { firebaseUid, name, phone, otp, expoPushToken } = req.body; 
-    const cleanPhone = phone.replace(/\D/g, '');
+    console.log(`1. Verification Attempt - Raw Phone: "${phone}", OTP Entered: "${otp}"`);
+    
+    const safePhone = normalizePhoneNumber(phone);
+    console.log(`2. Querying DB for Normalized Phone: "${safePhone}"`);
 
-    const stored = otpStore.get(cleanPhone);
-    if (!stored || stored.code !== otp || Date.now() > stored.expiry) {
+    const stored = await prisma.otpRequest.findUnique({
+        where: { phone: safePhone }
+    });
+
+    if (!stored) {
+        console.log(`❌ ERROR: No OTP record found in DB for "${safePhone}"`);
+        return res.status(400).json({ error: 'Invalid or expired OTP' });
+    }
+
+    console.log(`3. DB Record Found! Expected OTP: "${stored.otp_code}", Expires: ${stored.expires_at}`);
+
+    if (stored.otp_code !== otp || new Date() > stored.expires_at) {
+        console.log(`❌ ERROR: OTP Mismatch or Expired!`);
         return res.status(400).json({ error: 'Invalid or expired OTP' });
     }
 
     try {
-        // 2. Use 'upsert' to gracefully handle both New Registration and Re-Logins
+        console.log(`4. OTP Valid! Registering/Updating Driver...`);
         const user = await prisma.nestUser.upsert({
             where: { firebaseUid },
-            update: {
-                expoPushToken // If the user already exists, update their token to the new device's token
-            },
+            update: { expoPushToken },
             create: {
                 firebaseUid,
                 name,
-                phone,
+                phone: safePhone, 
                 role: 'DRIVER', 
-                expoPushToken // Save the token on their first registration
+                expoPushToken 
             }
         });
 
-        otpStore.delete(cleanPhone); // Clear the OTP
+        await prisma.otpRequest.delete({ where: { phone: safePhone } });
+        console.log(`5. SUCCESS! Registration complete, OTP deleted.`);
         res.status(200).json({ success: true, user });
     } catch (error) {
         console.error("Driver Registration error:", error);
@@ -158,30 +196,3 @@ export const verifyTelegramOtpAndRegister = async (req: Request, res: Response) 
     }
 };
 
-export const sendTelegramOtp = async (req: Request, res: Response) => {
-    try {
-        let { phone, name } = req.body;
-
-        // Normalization fallback just in case the frontend sends +251
-        if (phone.startsWith('+251')) phone = '0' + phone.slice(4);
-
-        // 1. Generate a 6-digit OTP
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-
-        // 2. Stage OTP in Database (Expires in 10 mins)
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
-        await prisma.otpRequest.upsert({
-            where: { phone },
-            update: { otp_code: otpCode, expires_at: expiresAt },
-            create: { phone, otp_code: otpCode, expires_at: expiresAt }
-        });
-
-        // 3. We respond instantly. We DO NOT message the bot here. 
-        // We wait for the user to open the bot and share their contact.
-        res.json({ success: true, message: 'OTP Staged. Waiting for Webhook verification.' });
-
-    } catch (error) {
-        console.error('OTP Staging Error:', error);
-        res.status(500).json({ error: 'Failed to stage OTP' });
-    }
-};

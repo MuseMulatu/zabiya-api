@@ -40,9 +40,9 @@ export const handleNestJuniorWebhook = async (req: any, res: any) => {
     if (!chatId) return;
 
     try {
-        // --- PHASE A: THE /START COMMAND ---
+      // --- PHASE A: THE /START COMMAND ---
         if (message.text && message.text.startsWith('/start')) {
-            const rolePayload = message.text.split(' ')[1]; // Extracts 'driver' or 'parent'
+            const rolePayload = message.text.split(' ')[1]; 
             
             let greetingText = 'Welcome to Nest Junior! 🛡️';
             if (rolePayload === 'driver') greetingText = 'Welcome to the CareDriver Portal! 🚖';
@@ -55,33 +55,34 @@ export const handleNestJuniorWebhook = async (req: any, res: any) => {
                     one_time_keyboard: true
                 }
             });
-            return; // 🚨 Stop here so the server doesn't crash trying to read a contact card
+            return; 
         }
 
         // --- PHASE B: THE CONTACT SHARE & OTP DELIVERY ---
         if (message.contact) {
-            // 1. Grab the raw phone number from Telegram
+            console.log("\n--- [TELEGRAM BOT] CONTACT RECEIVED ---");
             const rawPhoneNumber = message.contact.phone_number;
+            console.log(`1. Raw Phone from Telegram: "${rawPhoneNumber}"`);
             
-            // 2. Normalize it so it perfectly matches the database (e.g., "251934963090")
             const safePhone = normalizePhoneNumber(rawPhoneNumber);
+            console.log(`2. Normalized Phone (Querying DB): "${safePhone}"`);
 
-            // 3. Look up the OTP staged by the mobile app using the clean number
             const pendingOtp = await prisma.otpRequest.findUnique({ 
                 where: { phone: safePhone } 
             });
 
             if (!pendingOtp) {
+                console.log(`❌ ERROR: DB lookup failed. No OTP staged for "${safePhone}"`);
                 await nestBot.sendMessage(chatId, "⚠️ We couldn't find a pending request for this number. Please open the app and click 'Request OTP' first.", {
                     reply_markup: { remove_keyboard: true }
                 });
                 return;
             }
 
-            // 4. Deliver the Payload with tap-to-copy backticks!
+            console.log(`3. SUCCESS! Found OTP in DB. Sending "${pendingOtp.otp_code}" to Telegram user.`);
             await nestBot.sendMessage(chatId, `🔒 Your Nest Junior Auth Code is:\n\n\`${pendingOtp.otp_code}\`\n\nTap the code to copy it, then paste it back into the app.`, {
                 parse_mode: 'Markdown',
-                reply_markup: { remove_keyboard: true } // Remove the contact button
+                reply_markup: { remove_keyboard: true }
             });
         }
     } catch (error) {

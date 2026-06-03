@@ -59,13 +59,13 @@ export const formatArifpayPhone = (phone: string): string => {
 export const normalizePhoneNumber = (phone: string | undefined): string => {
   if (!phone) return '';
   
-  // Strip everything except digits (removes '+', spaces, dashes, etc.)
+  // 1. Strip everything except digits (removes '+', spaces, etc.)
   let cleaned = phone.replace(/\D/g, '');
 
-  // If the user entered a local number starting with '0' (e.g., 0934...), convert it to '2519...'
-  if (cleaned.startsWith('0')) {
-    cleaned = '251' + cleaned.substring(1);
+  // 2. If it starts with the Ethiopian country code '251', convert it to local '0'
+  if (cleaned.startsWith('251')) {
+    cleaned = '0' + cleaned.substring(3);
   }
 
-  return cleaned;
+  return cleaned; // Will always return "09..." format
 };

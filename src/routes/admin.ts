@@ -6,6 +6,9 @@ import {
     getUnassignedRoutes, assignDriverToRoute, getPendingPayments, activateRoute  
 } from '../controllers/nest-admin';
 
+import { getActiveRoutesForAudit } from '../controllers/nest-admin';
+
+
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
@@ -50,6 +53,8 @@ router.post('/nest/routes/:routeId/assign', assignDriverToRoute); // The "Quote 
 // NEW: Payment & Activation Routes
 router.get('/nest/routes/pending-payment', getPendingPayments);
 router.post('/nest/routes/:routeId/activate', activateRoute); // The "Activate & Livestream" step
+// ...
+router.get('/nest/routes/audit', getActiveRoutesForAudit);
 
 
 export default router;

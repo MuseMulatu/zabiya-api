@@ -3,13 +3,17 @@ import { prisma } from '../lib/db/prisma';
 
 // Fetch optimized driver route sequence skipping absent students
 export const getActiveManifest = async (req: Request, res: Response) => {
-    const { driverId } = req.query;
+    // Explicitly cast to string right at extraction
+    const driverId = req.query.driverId as string;
+
+    if (!driverId) {
+        return res.status(400).json({ error: 'Missing driverId' });
+    }
 
     try {
         const manifest = await prisma.routeSubscription.findMany({
             where: { 
-                // Changed 'String' to 'string' here 👇
-                driverId: driverId as string,
+                driverId: driverId, 
             },
             orderBy: { sequenceOrder: 'asc' },
             include: {
@@ -22,7 +26,6 @@ export const getActiveManifest = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to compile manifest matrix' });
     }
 };
-
 
 export const getDriverManifest = async (req: Request, res: Response) => {
     try {
@@ -53,24 +56,13 @@ export const getDriverManifest = async (req: Request, res: Response) => {
     }
 };
 
-// export const triggerBoardingMilestone = async (req: Request, res: Response) => {
-//     const { routeSubscriptionId, photoUrl } = req.body;
-//     try {
-//         const updatedRoute = await prisma.routeSubscription.update({
-//             where: { id: routeSubscriptionId },
-//             data: {}
-//         });
-//         res.status(200).json({ success: true, message: 'Parent notified instantly' });
-//     } catch (error) {
-//         res.status(500).json({ error: 'Failed to process boarding verification' });
-//     }
-// };
-
 // --- DRIVER UPLOAD ENDPOINTS ---
 
 // 1. 30-Second GPS Telemetry Receiver
 export const updateTelemetry = async (req: Request, res: Response) => {
-    const { routeSubscriptionId, latitude, longitude } = req.body;
+    const { latitude, longitude } = req.body;
+    const routeSubscriptionId = req.body.routeSubscriptionId as string; // Explicit cast
+
     try {
         // A. Insert historical log (for path reconstruction)
         await prisma.vehicleLocationLog.create({
@@ -90,9 +82,11 @@ export const updateTelemetry = async (req: Request, res: Response) => {
     }
 };
 
-// 2. Snapshot/Milestone Receiver (Updated)
+// 2. Snapshot/Milestone Receiver
 export const triggerBoardingMilestone = async (req: Request, res: Response) => {
-    const { routeSubscriptionId, photoUrl, type } = req.body; 
+    const { photoUrl, type } = req.body; 
+    const routeSubscriptionId = req.body.routeSubscriptionId as string; // Explicit cast
+
     try {
         await prisma.routeMilestone.create({
             data: { 
@@ -110,9 +104,10 @@ export const triggerBoardingMilestone = async (req: Request, res: Response) => {
 
 // --- PARENT FETCH ENDPOINTS ---
 
-// 3. Fast Live Coords Fetcher (Parent queries every 10s)
+// 3. Fast Live Coords Fetcher
 export const getLiveRouteData = async (req: Request, res: Response) => {
-    const { routeId } = req.params;
+    const routeId = req.params.routeId as string; // Explicit cast
+    
     try {
         const route = await prisma.routeSubscription.findUnique({
             where: { id: routeId },
@@ -126,17 +121,18 @@ export const getLiveRouteData = async (req: Request, res: Response) => {
 
 // 4. Historical Path & Snapshot Gallery Fetcher
 export const getRouteHistory = async (req: Request, res: Response) => {
-    const { routeId } = req.params;
+    const routeId = req.params.routeId as string; // Explicit cast
+    
     try {
         const [logs, milestones] = await Promise.all([
             prisma.vehicleLocationLog.findMany({
                 where: { routeSubscriptionId: routeId },
-                orderBy: { createdAt: 'asc' }, // Sequential for drawing Polyline
+                orderBy: { createdAt: 'asc' }, 
                 select: { latitude: true, longitude: true, createdAt: true }
             }),
             prisma.routeMilestone.findMany({
                 where: { routeSubscriptionId: routeId },
-                orderBy: { createdAt: 'desc' } // Newest photos first
+                orderBy: { createdAt: 'desc' } 
             })
         ]);
         res.json({ path: logs, snapshots: milestones });

@@ -137,3 +137,21 @@ export const activateRoute = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to activate route' });
     }
 };
+
+export const getActiveRoutesForAudit = async (req: Request, res: Response) => {
+    try {
+        // Fetches all routes, including their GPS tracks and Snapshot galleries
+        const routes = await prisma.routeSubscription.findMany({
+            where: { paymentStatus: 'ACTIVE' },
+            include: {
+                student: true,
+                driver: { include: { user: true } },
+                milestones: { orderBy: { createdAt: 'desc' } }, // Newest photos first
+                locationLogs: { orderBy: { createdAt: 'asc' } } // Sequential GPS track
+            }
+        });
+        res.json(routes);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch audit data' });
+    }
+};

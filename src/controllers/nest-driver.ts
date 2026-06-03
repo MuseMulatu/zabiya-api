@@ -23,30 +23,26 @@ export const getActiveManifest = async (req: Request, res: Response) => {
     }
 };
 
-// Fetch optimized driver route sequence skipping absent students
+
 export const getDriverManifest = async (req: Request, res: Response) => {
     try {
-        // The React Native app sends the driver's Firebase UID here
         const driverId = req.query.driverId as string;
         if (!driverId) return res.status(400).json({ error: 'Missing driverId' });
 
-        // Query the database for this specific driver's routes
         const manifest = await prisma.routeSubscription.findMany({
             where: {
-                // Find routes where the assigned driver's linked Firebase ID matches the requester
                 driver: {
                     user: {
                         firebaseUid: driverId
                     }
                 },
-                // Do not send kids whose parents toggled "Skip Today"
                 isSkippedToday: false 
             },
             orderBy: {
-                sequenceOrder: 'asc' // Ensure they are picked up in the correct Admin-assigned order
+                sequenceOrder: 'asc'
             },
             include: {
-                student: true // Include the student's name, school, and photo
+                student: true
             }
         });
 
@@ -57,19 +53,13 @@ export const getDriverManifest = async (req: Request, res: Response) => {
     }
 };
 
-// Fire network hooks when a driver crosses a waypoint geofence boundary
 export const triggerBoardingMilestone = async (req: Request, res: Response) => {
     const { routeSubscriptionId, photoUrl } = req.body;
-
     try {
-        // Log asset link and update active status to update parent views
         const updatedRoute = await prisma.routeSubscription.update({
             where: { id: routeSubscriptionId },
-            data: {
-                // Link verification records or update travel states here
-            }
+            data: {}
         });
-        
         res.status(200).json({ success: true, message: 'Parent notified instantly' });
     } catch (error) {
         res.status(500).json({ error: 'Failed to process boarding verification' });

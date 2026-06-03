@@ -15,14 +15,20 @@ const PORT = process.env.PORT || 3000;
 // 🚨 TRUST PROXY FIX: Tells Express to trust Nginx so the rate limiter works
 app.set('trust proxy', 1);
 
-// Hardcoded array for bulletproof CORS
-const allowedOrigins = [
-  'http://localhost:5173', // Local Vite
-  'http://localhost:3000', // Local Next.js/React
-  'https://zabiya.com',    // Production Frontend
-  'https://www.zabiya.com' // Production Frontend (www)
-];
+// Dynamically read from .env, split by comma, and trim spaces
+const envOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim()) 
+  : [];
 
+// Combine .env origins with the hardcoded fallbacks
+const allowedOrigins = [
+  ...envOrigins,
+  'http://localhost:5173', 
+  'http://localhost:3000', 
+  'https://zabiya.com',    
+  'https://www.zabiya.com',
+  'https://hulum-admin-dashboard.vercel.app' // Hardcoded just in case the .env fails
+];
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, curl, or Postman)

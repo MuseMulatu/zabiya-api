@@ -9,6 +9,7 @@ import { getActiveManifest, triggerBoardingMilestone } from '../controllers/nest
 import { handleNestJuniorWebhook } from '../lib/notifications/nestJuniorBot';
 import { getDriverManifest } from '../controllers/nest-driver';
 
+
 import express from 'express';
 
 const router = express.Router();
@@ -44,8 +45,9 @@ router.post('/routes/receipt', submitReceipt); // Using req.body.routeId
 // Add this route near your other routes
 router.post('/webhook', handleNestJuniorWebhook);
 
-// The Manifest Endpoint
+// It MUST use getDriverManifest, NOT getActiveManifest
 router.get('/driver/manifest', getDriverManifest);
+
 
 router.post('/auth/telegram-webhook', (req: Request, res: Response) => {
     if (nestBot) {
